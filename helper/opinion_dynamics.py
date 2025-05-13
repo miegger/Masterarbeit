@@ -70,17 +70,23 @@ class DGModel:
     p = projection_box(p, (-1, 1))
     p = projection_l1_ball(p, constraint) if constraint is not None else p
     return p
-    """
-    p = np.clip(prev_p - nabla * phi, -1, 1)
-    norm = np.linalg.norm(p, ord=1)
-    
-    if norm == 0 or constraint is None:
-      return np.clip(prev_p - nabla * phi, -1, 1)
-    
-    if norm > constraint:
-      p = (p / norm) * constraint
+  
+
+  def ofo_sensitivity(self, prev_p, sensitivity):
+    nabla = 0.1
+    sigma_pe = 0.07
+
+    phi = sensitivity.T @ (self.x - np.ones(self.N))
+    p = prev_p - nabla * phi + np.random.normal(0, sigma_pe, self.N)
+    p = projection_box(p, (-1, 1))
     return p
-    """
+
+
+  def get_sensitivity(self):
+    A_tilde = (np.eye(self.N) - self.gamma) @ self.A
+    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
+    return sensitivity
+
   """
   def ofo(self, prev_p, constraint=None):
     nabla = 0.1
