@@ -20,7 +20,7 @@ def update_number_of_clicks_2(number_of_clicks, x, p):
     return number_of_clicks
 
 # Parameters
-simulation_steps = 50
+simulation_steps = 30
 N = 5
 
 # Fixed matrix and parameters
@@ -50,6 +50,8 @@ for i in range(simulation_steps):
     
 print("Constraint None: position", position[-1], "cost function", 0.5 * np.linalg.norm((opinions[-1] - np.ones(N))**2, ord=2))
 fig, axs = plt.subplots(3, 1, figsize=(24, 8), sharex=True)
+fig2, ax2 = plt.subplots(3, 1, figsize=(24, 8), sharex=True)
+
    
 # Plot 1: Opinion Dynamics (OFO)
 axs[0].plot(opinions)
@@ -59,6 +61,8 @@ axs[0].grid(True)
 axs[0].legend([f"User {i+1}" for i in range(N)])
 axs[0].set_ylim(-1, 1.05)
 axs[0].set_xlim(0, simulation_steps)
+
+ax2[0].plot(position)
 
 
 
@@ -86,6 +90,9 @@ axs[1].grid(True)
 axs[1].set_ylim(-1, 1.05)
 axs[1].set_xlim(0, simulation_steps)
 
+ax2[1].plot(position)
+
+
 sim = DGModel(N=N, gamma=gamma_p, A=A, x_0=x_0)
 
 opinions = np.zeros((simulation_steps + 1, N))
@@ -108,6 +115,7 @@ axs[2].set_title("Opinion Dynamics (2 users, ideal)")
 axs[2].grid(True)
 axs[2].set_ylim(-1, 1.05)
 axs[2].set_xlim(0, simulation_steps)
+
 
 """
 # Plot 2: Opinion Dynamics (Feedforward)
