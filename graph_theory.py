@@ -8,6 +8,7 @@ np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 
 A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
+A = np.array([[1, 0, 0, 0, 0],[0.1, 0.9, 0, 0, 0],[0.1, 0, 0.9, 0, 0],[0, 0.8, 0, 0.2, 0],[0, 0, 0.8, 0, 0.2]])
 print("Matrix power", np.linalg.matrix_power(A, 100))
 #print("Eigenvalues", np.linalg.eig(A.T))
 
@@ -27,7 +28,7 @@ print("Closeness_centrality", nx.closeness_centrality(DG))
 """
 
 #exteneded de groot
-gamma1 = np.diag([0.39,0.82,0.61,0.71,0.41])
+gamma1 = np.diag([0.8,0.8,0.8,0.8,0.8])
 gamma2 = np.diag([0,0.82,0,0,0])
 gamma3 = np.diag([0,0,0,0,0.41])
 
@@ -62,6 +63,7 @@ for i in range(simulation_steps):
     opinions3[i + 1] = sim3.update(p=position3)
 
 
+"""
 ig, axs = plt.subplots(3, 1, figsize=(15, 10), sharex=True)
 
 axs[0].plot(opinions1)
@@ -88,3 +90,4 @@ axs[2].set_ylim(-1, 1)
 axs[2].set_xlim(0, simulation_steps)
 
 plt.show()
+"""
