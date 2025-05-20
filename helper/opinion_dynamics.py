@@ -48,6 +48,10 @@ def compute_delta(sensitivity, constraints):
   print(column_sums, delta)
   return delta
 
+
+
+
+
 class DGModel:
   def __init__(self, N, gamma, A, x_0):
     self.N = N
@@ -86,6 +90,28 @@ class DGModel:
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
     return sensitivity
+  
+
+  def ofo_milp(self, prev_p, constraint=None):
+    nabla = 0.1
+    A_tilde = (np.eye(self.N) - self.gamma) @ self.A
+    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
+    
+    phi = sensitivity.T @ (self.x - np.ones(self.N))
+    p = prev_p - nabla * phi
+
+    p = projection_box(p, (-1, 1))
+
+    if constraint is None:
+      p = np.round(p)
+    else:
+      binary_p = np.zeros(self.N)
+      top_indices = np.argpartition(p, -constraint)[-constraint:]
+      binary_p[top_indices] = 1
+      p = binary_p
+      
+    return p
+
 
   """
   def ofo(self, prev_p, constraint=None):
