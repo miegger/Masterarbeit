@@ -96,7 +96,7 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
 simulation_steps = 50
 N = 5
 trials = 50
-modes = np.array([1, 2, 3, 4, 5, 6, 7])
+modes = np.array([1])
 
 # Fixed matrix and parameters
 A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
