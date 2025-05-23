@@ -91,6 +91,11 @@ class DGModel:
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
     return sensitivity
   
+  def get_CR_sensitivity(self, p):
+    A_tilde = (np.eye(self.N) - self.gamma) @ self.A
+    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
+    return 0.5 * np.diag(sensitivity @ p) + 0.5 * np.diag(p) @ sensitivity
+  
 
   def ofo_milp(self, prev_p, constraint=None):
     nabla = 0.1

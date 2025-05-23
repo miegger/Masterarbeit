@@ -7,8 +7,8 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
     """
     Estimates the sensitvity with a Kalman filter
 
-    :param int mode: 1: naiv, 2: forcing values to be non-negative
-                    3: sigma_q from Sanjay, 4: sigma_q from Sanjay and forcing values to be non-negative
+    :param int mode: 1: constrained KF, 2: unconstrained KF
+                    3: sigma_q from Sanjay, 4: unconstrained KF with sigma_q and sigma_r from Sanjay
                     5: sigma_q from Sanjay and sigma_r relative to delta_p, 6: sigma_q and sigma_r from Sanjay
                     7: naiv and QF 
     :return: 
@@ -27,7 +27,7 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
     R = sigma_r**2 * np.eye(N)
     Q = sigma_q**2 * np.eye(N**2)
     M = 10
-    T = 100
+    T = 20
 
     delta_x = np.zeros(N)
     delta_p = np.zeros(N)
@@ -41,10 +41,10 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
             kroeneker = np.kron(np.transpose(delta_p), np.eye(N))
             
             # Sanjay's method on predicting sigma_r
-            if mode == 6:
+            if mode == 4 and mode == 6:
                 sigma_r = np.sqrt(np.mean((delta_x - kroeneker @ l) ** 2))
 
-            if mode == 5:
+            if mode == 5 and mode == 7:
                 n = np.linalg.norm(delta_p, ord=2)**2
                 if n != 0:
                     sigma_r = n
@@ -54,11 +54,8 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
             K = sigma @ np.transpose(kroeneker) @ np.linalg.inv(R + kroeneker @ sigma @ np.transpose(kroeneker))
             l = l + K @ (delta_x - kroeneker @ l)
 
-            if mode == 2 or mode == 4:
-                l[l < 0] = 0
-
             # Sanjay's mehtod on predicting sigma_q
-            if mode >= 2 and mode <= 6:
+            if mode == 3 or mode == 4 or mode == 5 or mode == 6:
                 non_zero_values = l[l != 0]
                 min_non_zero = np.min(non_zero_values)
                 sigma_q = min_non_zero / M
@@ -68,13 +65,14 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
             sigma = sigma + Q - K @ kroeneker @ sigma
 
             # Constrained Kalman filter
-            if mode == 7:
+            if mode != 2 and mode != 4 and mode != 6:
                 x = cp.Variable(N**2)
                 objective = cp.Minimize(cp.quad_form(x - l, np.linalg.inv(sigma)))
                 constraints = [x >= 0, x <= 1]
-                for row in range(N):
-                    indices = [row + col * N for col in range(N)]
-                    constraints.append(cp.sum(x[indices]) == 1)
+                if mode == 7:
+                    for row in range(N):
+                        indices = [row + col * N for col in range(N)]
+                        constraints.append(cp.sum(x[indices]) == 1)
                 problem = cp.Problem(objective, constraints)
                 problem.solve()
 
@@ -102,10 +100,10 @@ def estimate_sensitivity(mode, sim, simulation_steps, true_sensitivity, opinions
     return sensitivity_error, sensitivity_error_diag, col_sum_error
 
 # Parameters
-simulation_steps = 5000
+simulation_steps = 1000
 N = 5
 trials = 50
-modes = np.array([1])
+modes = np.array([1,2,7])
 
 # Fixed matrix and parameters
 A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
@@ -183,7 +181,7 @@ plt.boxplot(sensitivity_error.T, vert=True, patch_artist=True, showfliers=False)
 # Add labels (optional)
 size = modes.size
 plt.xticks(ticks=range(1, size + 1), labels=[f'Mode {modes[i]}' for i in range(0, size)])
-plt.title("Relative error of the estimated sensitivity with trigger (T=20)")
+plt.title("Overall relative error of the estimated sensitivity diagonal elements (T=20)")
 plt.ylabel("Error")
 plt.grid()
 #plt.ylim(30,140)
@@ -194,7 +192,7 @@ plt.boxplot(sensitivity_error_diag.T, vert=True, patch_artist=True, showfliers=F
 
 # Add labels (optional)
 plt.xticks(ticks=range(1, size + 1), labels=[f'Mode {modes[i]}' for i in range(0, size)])
-plt.title("Relative error of the estimated sensitivity diagonal elements (T=20)")
+plt.title("Mean relative error of the estimated sensitivity diagonal elements (T=20)")
 plt.ylabel("Error")
 plt.grid()
 # Create the boxplot

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
 
 A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
-A = np.array([[0.45, 0.05, 0.1, 0.3, 0.1],[0, 0.5, 0, 0, 0.5],[0.3, 0.05, 0.35, 0.15, 0.15],[0, 0.15, 0.3, 0.55, 0],[0.5, 0.2, 0, 0, 0.3]])
+A = np.array([[1, 0, 0, 0, 0],[0.1, 0.9, 0, 0, 0],[0.1, 0, 0.9, 0, 0],[0, 0.8, 0, 0.2, 0],[0, 0, 0.8, 0, 0.2]])
 
 
 print(A)
@@ -15,7 +15,7 @@ print(A)
 print("Col sum", np.sum(A, axis=0))
 print("Row sum", np.sum(A, axis=1))
 
-print("Matrix power", np.linalg.matrix_power(A, 100))
+print("Matrix power \n", np.linalg.matrix_power(A, 100))
 
 
 # Below simulations with a constant gamma
@@ -33,7 +33,7 @@ for i, g in enumerate(ga):
     print(eigenvector_centrality[i])
 
 for i in range(col_sum.shape[0]):
-    plt.plot(eigenvector_centrality[i], 'o-', label=f'$\\gamma = {ga[i]:.1f}$')
+    plt.plot(col_sum[i], 'o-', label=f'$\\gamma = {ga[i]:.1f}$')
  
 
 plt.xticks(ticks=[0, 1, 2, 3, 4], labels=[1, 2, 3, 4, 5])
