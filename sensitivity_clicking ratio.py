@@ -26,7 +26,7 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
     R = sigma_r**2 * np.eye(N)
     Q = sigma_q**2 * np.eye(N**2)
     M = 10
-    T = 80
+    T = 60
 
     delta_p = np.zeros(N)
     last_CR = np.zeros(N)
@@ -68,7 +68,7 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
 
             delta_p = position[i] - position[i - 1]
         
-        elif(i % T >= 40):
+        elif(i % T >= 20):
             position[i] = position[i - 1]
             number_of_clicks += (np.random.rand(N) < clicking_function(position[i], opinions[i])).astype(int)
             
