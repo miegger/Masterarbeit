@@ -6,11 +6,11 @@ from scipy.optimize import minimize
 
 
 def calculate_clicking_probability(x, p):
-    return 0.5 + 0.5*x*p
+    return 1 - 0.25*(x-p)**2
 
 
 # Parameters
-simulation_steps = 50
+simulation_steps = 100
 N = 15
 runs = 1
 
@@ -37,8 +37,7 @@ for i in range(simulation_steps):
 
     opinions[i + 1] = sim.update(p=position[i])
 
-print(opinions[0])
-print(opinions[-1])
+error = np.zeros((N))
 
 for user in range(N):
     np.random.seed(42)
@@ -55,8 +54,8 @@ for user in range(N):
     x_true = opinions[:,user]
 
     # --- Define click probability function ---
-    def click_prob(x, p, alpha=true_alpha, beta=true_beta):
-        return expit(-alpha * (x - p) ** 2 + beta)
+    def click_prob(x, p, alpha=true_alpha):
+        return 1 - 0.25*(x-p)**2
 
     # --- Generate click data ---
     c_t = clicks[:,user]
@@ -87,6 +86,7 @@ for user in range(N):
         result = minimize(neg_log_likelihood, eta, bounds=[(0.0, 1.0)])
         eta = result.x[0]
 
+    error[user] = np.mean(np.abs(x_true[0:-1]-x_est))
     print(f"Estimated eta: {eta:.4f}")
 
     # --- Plot the results ---
@@ -102,3 +102,5 @@ for user in range(N):
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+print(error)

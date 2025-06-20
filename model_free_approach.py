@@ -15,9 +15,9 @@ def calculate_p(sim, simulation_steps, opinions, position, T):
     """
     eta = 0.2
     delta = 0.001
+    kappa = 5
 
     N = opinions.shape[1]
-    number_of_clicks = np.zeros(N)
     w = 0 * np.ones(N)
     prev_norm = np.linalg.norm(opinions[0] - np.ones(N), 2)**2
 
@@ -27,14 +27,17 @@ def calculate_p(sim, simulation_steps, opinions, position, T):
         
         if(i % T == 0):
             v = np.random.random(N)
-            print(v)
             v /= np.linalg.norm(v, ord=2)
 
             gradient = (N*v) / delta * (np.linalg.norm(opinions[i] - np.ones(N), 2)**2 - prev_norm)
             prev_norm = np.linalg.norm(opinions[i] - np.ones(N), 2)**2  
+            top_kappa_indices = np.argsort(np.abs(gradient))[-kappa:]
+            s = np.zeros_like(gradient)
+            s[top_kappa_indices] = -np.sign(gradient[top_kappa_indices]) #np.where(gradient > 0, -1, np.where(gradient < 0, 1, 0))
+                        
+            w = (1 - eta) * w + eta * s
 
-            w = (1 - eta) * w + eta * np.where(gradient > 0, -1, np.where(gradient < 0, 1, 0))
-            #print(w)
+            print(s, w)
             position[i] = w + delta * v
         
         else:

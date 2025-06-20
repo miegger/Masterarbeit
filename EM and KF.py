@@ -2,11 +2,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 from helper.opinion_dynamics import DGModel
 from helper.build_delta_cr import build_delta_cr
-import cvxpy as cp
+from scipy.special import expit  # Sigmoid
+from scipy.optimize import minimize_scalar
+
 
 def clicking_function(p, x):
     N = len(p)
     return 0.5*np.ones(N) + 0.5*p*x
+
+
+def neg_log_likelihood(alpha, opinions, positions, clicks):
+    total_loss = 0.0
+    for i, o in enumerate(opinions):
+        for j, p in enumerate(positions):
+            d = abs(o - p)
+            prob = expit(-alpha * d)
+            c = clicks[i, j]
+            # Add log-likelihood contribution (with small eps for numerical stability)
+            prob = np.clip(prob, 1e-6, 1 - 1e-6)
+            total_loss += c * np.log(prob) + (1 - c) * np.log(1 - prob)
+    return -total_loss  # Minimize negative log-likelihood
 
 
 def estimate_sensitivity(sim, simulation_steps, opinions, position):
@@ -27,6 +42,7 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
     Q = sigma_q**2 * np.eye(N**2)
     M = 10
     T = 60
+    alpha = 5
 
     least_squares_P = np.zeros((simulation_steps // T + 1, N))
     least_squares_Y = np.zeros((simulation_steps // T, N))
@@ -39,23 +55,16 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
         opinions[i] = sim.update(p=position[i - 1])
         
         if(i % T == 0):
-            least_squares_Y[i // T - 1] = 2 * (number_of_clicks / 40 - 0.5) / position[i - 1]
+            least_squares_Y[i // T - 1] = (number_of_clicks / 40 - 0.5) / (0.5 * position[i - 1])
             delta_CR = number_of_clicks/40 - last_CR
             last_CR = number_of_clicks/40
             number_of_clicks = np.zeros(N)
 
-            CR_sensitivity_value = sim.get_CR_sensitivity(position[i - 1])
-            #print("Position: ", position[i - 1])
-            #print("CR_sensitivity_col_sum: ", np.diag(CR_sensitivity_value))
-            #print("Postion: ", position[i - 1])
             H = build_delta_cr(position[i - 1], position[i - 1 - T])
             R = sigma_r**2 * np.eye(N)
             
             K = sigma @ np.transpose(H) @ np.linalg.inv(R + H @ sigma @ np.transpose(H))
             l = l + K @ (delta_CR - (H @ l))
-
-            #print(delta_CR)
-            #print(H @ l)
             
             Q = sigma_q**2 * np.eye(N**2)
 
@@ -63,7 +72,6 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
 
             S = np.reshape(l, (N, N), order='F')
 
-            #print("estimation: ", np.diag(S))
             sensitivity_error[i-1] = np.mean(np.abs(np.diag(sim.get_sensitivity()) - np.diag(S)) / np.abs(np.diag(sim.get_sensitivity()))) * 100
 
             position[i] = np.random.uniform(-1, 1, N)
