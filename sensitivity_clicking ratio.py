@@ -14,7 +14,6 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
     Estimates the sensitvity with a Kalman filter
     :return: 
     """
-    sensitivity_error = np.zeros(simulation_steps)
 
     sigma_r = 0.1
     sigma_q = 0.005 #0.015
@@ -25,11 +24,12 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
     K = np.zeros((N, N))
     R = sigma_r**2 * np.eye(N)
     Q = sigma_q**2 * np.eye(N**2)
-    M = 10
     T = 60
+    
+    sensitivity_error = np.zeros(simulation_steps // T)
 
-    least_squares_P = np.zeros((simulation_steps // T + 1, N))
-    least_squares_Y = np.zeros((simulation_steps // T, N))
+    least_squares_H = np.zeros(((simulation_steps // T)*N, N**2))
+    least_squares_CR = np.zeros((simulation_steps // T)*N)
 
     last_CR = np.zeros(N)
 
@@ -39,16 +39,17 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
         opinions[i] = sim.update(p=position[i - 1])
         
         if(i % T == 0):
-            least_squares_Y[i // T - 1] = 2 * (number_of_clicks / 40 - 0.5) / position[i - 1]
             delta_CR = number_of_clicks/40 - last_CR
             last_CR = number_of_clicks/40
             number_of_clicks = np.zeros(N)
 
-            CR_sensitivity_value = sim.get_CR_sensitivity(position[i - 1])
+            least_squares_CR[(i // T - 1) * N: i // T * N] = delta_CR
+
             #print("Position: ", position[i - 1])
             #print("CR_sensitivity_col_sum: ", np.diag(CR_sensitivity_value))
             #print("Postion: ", position[i - 1])
             H = build_delta_cr(position[i - 1], position[i - 1 - T])
+            least_squares_H[(i // T - 1) * N: i // T * N, :] = H
             R = sigma_r**2 * np.eye(N)
             
             K = sigma @ np.transpose(H) @ np.linalg.inv(R + H @ sigma @ np.transpose(H))
@@ -63,11 +64,10 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
 
             S = np.reshape(l, (N, N), order='F')
 
-            #print("estimation: ", np.diag(S))
-            sensitivity_error[i-1] = np.mean(np.abs(np.diag(sim.get_sensitivity()) - np.diag(S)) / np.abs(np.diag(sim.get_sensitivity()))) * 100
+            #sensitivity_error[i-1] = np.mean(np.abs(np.diag(sim.get_sensitivity()) - np.diag(S)) / np.abs(np.diag(sim.get_sensitivity()))) * 100
+            sensitivity_error[i // T - 1] = np.mean((sim.get_sensitivity() - S)**2)
 
             position[i] = np.random.uniform(-1, 1, N)
-            least_squares_P[i // T] = position[i]
         
         elif(i % T >= 20):
             position[i] = position[i - 1]
@@ -76,23 +76,19 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
         else:
             position[i] = position[i - 1]
     
-    #print("original sensitivity: ", np.diag(sim.get_sensitivity()), "\n")
+    print("original sensitivity: \n", sim.get_sensitivity(), "\n")
 
-    mask =  np.all(np.isfinite(least_squares_Y), axis=1)
-    least_squares_Y = least_squares_Y[mask]
-    least_squares_P = least_squares_P[:-1, :][mask]
-    S_least_squares = least_squares_Y.T @ np.linalg.pinv(least_squares_P.T)
+    S_least_squares = np.reshape(np.linalg.lstsq(least_squares_H, least_squares_CR)[0], (N, N), order='F')
 
-    #print(np.diag(S))
-    #print(np.diag(S_least_squares))
+    print(S)
+    print(S_least_squares)
 
-
-    sensitivity_error = sensitivity_error[sensitivity_error != 0]
-    ls_error = np.mean(np.abs(np.diag(sim.get_sensitivity()) - np.diag(S_least_squares)) / np.abs(np.diag(sim.get_sensitivity()))) * 100
+    ls_error = np.mean((sim.get_sensitivity() - S_least_squares)**2)
+    #ls_error = np.mean(np.abs(np.diag(sim.get_sensitivity()) - np.diag(S_least_squares)) / np.abs(np.diag(sim.get_sensitivity()))) * 100
 
     plt.plot(sensitivity_error, linestyle='-', label='Kalman Filter Sensitivity Error')
     plt.plot(ls_error * np.ones(len(sensitivity_error)), linestyle='--', color='red', label='Least Squares Sensitivity Error')
-    plt.ylim(0,200)
+    #plt.ylim(0,200)
     plt.grid()
     plt.legend()
     return S, S_least_squares
@@ -101,7 +97,7 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
 # Parameters
 simulation_steps = 6000
 N = 5
-trials = 50
+trials = 1
 modes = np.array([2])
 
 # Fixed matrix and parameters
@@ -124,10 +120,8 @@ for t in range(trials):
 
     bias_kf[t] = np.mean(np.diag(S) - np.diag(sim.get_sensitivity()))
     bias_ls[t] = np.mean(np.diag(S_LS) - np.diag(sim.get_sensitivity()))
-    bias_kf_ls[t] = np.mean(np.diag(S) - np.diag(S_LS))
 
 print(np.mean(bias_kf), bias_kf)
 print(np.mean(bias_ls), bias_ls)
-print(np.mean(bias_kf_ls), bias_kf_ls)
 
-#plt.show()
+plt.show()
