@@ -91,6 +91,9 @@ class DGModel:
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
     return sensitivity
   
+  def get_opinion(self):
+    return self.x
+  
   def get_CR_sensitivity(self, p):
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
