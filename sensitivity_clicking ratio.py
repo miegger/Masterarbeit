@@ -39,32 +39,28 @@ def estimate_sensitivity(sim, simulation_steps, opinions, position):
         opinions[i] = sim.update(p=position[i - 1])
         
         if(i % T == 0):
-            delta_CR = number_of_clicks/40 - last_CR
-            last_CR = number_of_clicks/40
+            # Observed change in Click-Through Rate (CTR)
+            delta_CR = (number_of_clicks / 40) - last_CR
+            last_CR = number_of_clicks / 40
             number_of_clicks = np.zeros(N)
 
             least_squares_CR[(i // T - 1) * N: i // T * N] = delta_CR
 
-            #print("Position: ", position[i - 1])
-            #print("CR_sensitivity_col_sum: ", np.diag(CR_sensitivity_value))
-            #print("Postion: ", position[i - 1])
+            # Observation model: delta_CR ≈ H * l + noise
             H = build_delta_cr(position[i - 1], position[i - 1 - T])
             least_squares_H[(i // T - 1) * N: i // T * N, :] = H
-            R = sigma_r**2 * np.eye(N)
-            
-            K = sigma @ np.transpose(H) @ np.linalg.inv(R + H @ sigma @ np.transpose(H))
-            l = l + K @ (delta_CR - (H @ l))
 
-            #print(delta_CR)
-            #print(H @ l)
-            
-            Q = sigma_q**2 * np.eye(N**2)
+            # Kalman gain
+            K = sigma @ H.T @ np.linalg.inv(R + H @ sigma @ H.T)
 
+            # State update
+            l = l + K @ (delta_CR - H @ l)
+
+            # Covariance update
             sigma = sigma + Q - K @ H @ sigma
 
-            S = np.reshape(l, (N, N), order='F')
 
-            #sensitivity_error[i-1] = np.mean(np.abs(np.diag(sim.get_sensitivity()) - np.diag(S)) / np.abs(np.diag(sim.get_sensitivity()))) * 100
+            S = np.reshape(l, (N, N), order='F')
             sensitivity_error[i // T - 1] = np.mean((sim.get_sensitivity() - S)**2)
 
             position[i] = np.random.uniform(-1, 1, N)
