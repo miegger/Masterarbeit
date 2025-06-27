@@ -15,13 +15,18 @@ sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
 
 # True W (unknown to learner)
 W_true = sim.get_sensitivity()
-print(W_true)
 
 # Generate random article positions (shape: num_samples x d)
 P = np.random.uniform(low=-1, high=1, size=(num_samples, d))
 
 def clicking_function(p, opinions, beta_true):
     return np.exp(-beta_true * (p - opinions)**2)
+
+def clicking_function1(p, opinions):
+    return 0.5 * np.ones_like(p) + 0.5 * p * opinions
+
+def clicking_function2(p, opinions):
+    return 0.25 * np.ones_like(p) - (p - opinions)**2
 
 CTR_obs = np.zeros((num_samples, d))  # Observed CTRs
 X = np.zeros((num_samples, d))
@@ -39,8 +44,37 @@ for i in range(num_samples):
     CTR_obs[i] = number_of_clicks / 40  # Average CTR over 40 trials
     X[i] = sim.get_opinion()
 
-#CTR_true = np.exp(-beta_true * (X - P)**2)
+delta_p = np.diff(P[0:45], axis=0)
+delta_cr = np.diff(CTR_obs[0:45], axis=0)
 
+A = delta_cr.T @ delta_p @ np.linalg.inv(delta_p.T @ delta_p)
+
+
+#print(CTR_obs[45:])
+#print(A @ P[45:].T)
+
+"""
+sim2 = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+X2 = np.zeros((2,d))
+P2 = P[:2]
+CTR_obs2 = np.zeros((2, d))  # Observed CTRs for two users
+for i in range(2):
+    for j in range(20):
+        sim2.update(P[i])
+
+    number_of_clicks = np.zeros(d)
+    for j in range(40):
+        x = sim2.update(P[i])
+        number_of_clicks += (np.random.rand(d) < clicking_function(P[i], x, beta_true)).astype(int)
+
+    CTR_obs2[i] = number_of_clicks / 40  # Average CTR over 40 trials
+    X2[i] = sim2.get_opinion()
+
+S = sim2.get_sensitivity()
+
+print(CTR_obs2[0])
+print(CTR_obs2[1] + (0.5 * S @ P[1] + 0.5 * S.T @ P[1]) * (P[0] - P[1]))
+"""
 
 # --------------------------
 # Estimation Function (with beta)
@@ -102,6 +136,6 @@ plt.legend()
 plt.title('Observed vs Predicted CTR (for selected users)')
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 
