@@ -1,0 +1,88 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import fsolve, least_squares
+from helper.opinion_dynamics import DGModel
+
+# --- Simulation settings ---
+np.random.seed(30)
+num_samples = 2
+d = 5  # Dimension of p and x
+A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
+x_0 = np.random.uniform(-1, 1, d)
+gamma_p = np.random.uniform(0.01, 0.5, d)
+sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+
+# Generate random article positions (shape: num_samples x d)
+P = np.random.uniform(low=-1, high=1, size=(num_samples, d))
+#P_1d = np.linspace(-1, 1, num_samples)
+#P = np.tile(P_1d[:, None], (1, d))
+
+def clicking_function(p, opinions, beta_true):
+    return np.exp(-beta_true * (p - opinions)**2)
+
+def clicking_function1(p, opinions):
+    return 0.5 * np.ones_like(p) + 0.5 * p * opinions
+
+def clicking_function2(p, opinions):
+    return np.ones_like(p) - 0.25*(p - opinions)**2
+
+CTR_obs = np.zeros((num_samples, d))  # Observed CTRs
+X = np.zeros((num_samples, d))
+true_sensitivity = np.zeros((num_samples, d, d))
+
+# Compute true x = Wp and CTRs
+for i in range(num_samples):
+    for j in range(20):
+        sim.update(P[i])
+
+    number_of_clicks = np.zeros(d)
+    for j in range(40):
+        x = sim.update(P[i])
+        number_of_clicks += (np.random.rand(d) < clicking_function1(P[i], x)).astype(int)
+
+    CTR_obs[i] = number_of_clicks / 40  # Average CTR over 40 trials
+    #CTR_obs[i] = clicking_function1(P[i], sim.get_opinion())  # Average CTR over 40 trials
+
+    X[i] = sim.get_opinion()
+    true_sensitivity[i] = sim.get_CR_sensitivity(P[i])
+
+#print(np.round(true_sensitivity, 3))
+
+def equations(vars, G1, G2, d):
+    x = vars[0:2*d]
+    y = vars[2*d:4*d]
+    S = vars[4*d:].reshape((d, d), order='F')
+
+    eq = []
+
+    for i in range(d):
+        eq.append(x[i] + y[i]*S[i][i] - G1[i][i]) #eq 0-2: x_i + y_i * S_ii = G_ii
+        eq.append(x[i + d] + y[i + d]*S[i][i] - G2[i][i]) #eq 3-5: x'_i + y'_i * S_ii = G'_ii
+        
+        for j in range(d):
+            if i != j:
+                eq.append(y[i]*S[i][j] - G1[i][j]) #eq 6-11: y_i * S_ij = G_ij
+                eq.append(y[i + d]*S[i][j] - G2[i][j]) #eq 12-17: y_i * S_ij = G_ij
+        
+        temp = sum(S[i][j] for j in range(d))
+        eq.append(temp - 1) #eq 18-20: S_i1 + S_i2 + ... + S_id = 1
+    
+    return eq
+
+
+
+initial_guess = np.ones(4*d + d**2)
+result = least_squares(equations, initial_guess, args=(true_sensitivity[0], true_sensitivity[1], d))
+
+
+print("Success:", result.success)
+print("Message:", result.message)
+
+print("True x:", 0.5*X[0], 0.5*X[1])
+print("Estimated x:", result.x[0:d], result.x[d:2*d])
+
+print("True y:", 0.5*P[0], 0.5*P[1])
+print("Estimated y:", result.x[2*d:3*d], result.x[3*d:4*d])
+
+print("True sensitivity:", np.round(sim.get_sensitivity(), 3))
+print("Estimated sensitivity:", np.round(result.x[4*d:].reshape((d, d), order='F'),3))
