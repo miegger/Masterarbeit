@@ -1,10 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.optimize import fsolve, least_squares
+from scipy.optimize import fsolve, least_squares, minimize
 from helper.opinion_dynamics import DGModel
 
 # --- Simulation settings ---
-np.random.seed(30)
+np.random.seed(20)
 num_samples = 2
 d = 5  # Dimension of p and x
 A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
@@ -48,41 +48,126 @@ for i in range(num_samples):
 
 #print(np.round(true_sensitivity, 3))
 
-def equations(vars, G1, G2, d):
-    x = vars[0:2*d]
-    y = vars[2*d:4*d]
-    S = vars[4*d:].reshape((d, d), order='F')
+def equations(vars, G, d):
+    n_G = G.shape[0]  # number of G matrices
+    x = vars[0 : n_G * d]
+    y = vars[n_G * d : 2 * n_G * d]
+    S = vars[2 * n_G * d :].reshape((d, d), order='F')
 
     eq = []
 
     for i in range(d):
-        eq.append(x[i] + y[i]*S[i][i] - G1[i][i]) #eq 0-2: x_i + y_i * S_ii = G_ii
-        eq.append(x[i + d] + y[i + d]*S[i][i] - G2[i][i]) #eq 3-5: x'_i + y'_i * S_ii = G'_ii
         
+        #for g in range(n_G):
+        #    eq.append(x[g * d + i] + y[g * d + i] * S[i][i] - G[g][i][i])  # diagonal terms
+
         for j in range(d):
             if i != j:
-                eq.append(y[i]*S[i][j] - G1[i][j]) #eq 6-11: y_i * S_ij = G_ij
-                eq.append(y[i + d]*S[i][j] - G2[i][j]) #eq 12-17: y_i * S_ij = G_ij
-        
-        temp = sum(S[i][j] for j in range(d))
-        eq.append(temp - 1) #eq 18-20: S_i1 + S_i2 + ... + S_id = 1
-    
+                for g in range(n_G):
+                    eq.append(y[g * d + i] * S[i][j] - G[g][i][j])  # off-diagonal terms
+
+        eq.append(np.sum(S[i, :]) - 1)  # row sum of S equals 1
+
     return eq
 
+def objective(vars, G, d):
+    return np.sum(np.abs(np.array(equations(vars, G, d))))
 
+def constraint1(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[1][1] - S[2][1]
+def constraint2(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[1][1] - S[3][1]
+def constraint3(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[1][1] - S[4][1]
+def constraint4(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[1][1] - S[0][1]
+def constraint5(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[4][4] - S[0][4]
+def constraint6(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[4][4] - S[1][4]
+def constraint7(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[4][4] - S[2][4]
+def constraint8(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[4][4] - S[3][4]
+def constraint9(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[0][0] - S[1][0]
+def constraint10(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[0][0] - S[2][0]
+def constraint11(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[0][0] - S[3][0]
+def constraint12(vars):
+    S = vars[2 * 2 * 5 :].reshape((d, d), order='F')
+    return S[0][0] - S[4][0]
 
-initial_guess = np.ones(4*d + d**2)
-result = least_squares(equations, initial_guess, args=(true_sensitivity[0], true_sensitivity[1], d))
+cons = [{'type': 'ineq', 'fun': constraint1},
+        {'type': 'ineq', 'fun': constraint2},
+        {'type': 'ineq', 'fun': constraint3},
+        {'type': 'ineq', 'fun': constraint4},
+        {'type': 'ineq', 'fun': constraint5},
+        {'type': 'ineq', 'fun': constraint6},
+        {'type': 'ineq', 'fun': constraint7},
+        {'type': 'ineq', 'fun': constraint8},
+        {'type': 'ineq', 'fun': constraint9},
+        {'type': 'ineq', 'fun': constraint10},
+        {'type': 'ineq', 'fun': constraint11},
+        {'type': 'ineq', 'fun': constraint12},]
 
+num_vars = 2 * num_samples * d + d**2
+lower_bound = np.concatenate((-np.inf * np.ones(2 * num_samples * d), np.zeros(d**2)))
+upper_bound = np.concatenate((np.inf * np.ones(2 * num_samples * d), np.ones(d**2)))
+initial_guess = np.concatenate((np.zeros(2 * num_samples * d), 0.5 * np.ones(d**2)))
 
+"""
+result = minimize(
+    objective,
+    initial_guess,
+    bounds=list(zip(lower_bound, upper_bound)),
+    method='SLSQP',
+    constraints=cons,
+    args=(true_sensitivity, d),
+)
+"""
+
+result = least_squares(
+    equations,
+    initial_guess,
+    ftol=1e-12,
+    xtol=1e-12,
+    gtol=1e-14,
+    bounds=[lower_bound, upper_bound],
+    args=(true_sensitivity, d),
+)
+
+# Print results
 print("Success:", result.success)
 print("Message:", result.message)
 
-print("True x:", 0.5*X[0], 0.5*X[1])
-print("Estimated x:", result.x[0:d], result.x[d:2*d])
+for g in range(num_samples):
+    print(f"True x[{g}]:", 0.5 * X[g])
+    print(f"Estimated x[{g}]:", result.x[g*d:(g+1)*d])
 
-print("True y:", 0.5*P[0], 0.5*P[1])
-print("Estimated y:", result.x[2*d:3*d], result.x[3*d:4*d])
+for g in range(num_samples):
+    print(f"True y[{g}]:", 0.5 * P[g])
+    print(f"Estimated y[{g}]:", result.x[num_samples*d + g*d : num_samples*d + (g+1)*d])
 
-print("True sensitivity:", np.round(sim.get_sensitivity(), 3))
-print("Estimated sensitivity:", np.round(result.x[4*d:].reshape((d, d), order='F'),3))
+S_estimated = result.x[2 * num_samples * d:].reshape((d, d), order='F')
+print("True sensitivity matrix:\n", np.round(sim.get_sensitivity(), 3))
+print("Estimated sensitivity matrix:\n", np.round(S_estimated, 3))
+print("True col sum:", np.round(np.sum(sim.get_sensitivity(), axis=0), 3))
+print("Estimated col sum:", np.round(np.sum(S_estimated, axis=0), 3))
+
+print(result.fun)
+
+#print("True equations:", np.array(equations(np.concatenate((0.5 * X[0], 0.5 * P[0], sim.get_sensitivity().flatten(order='F'))), true_sensitivity, d)))
+#print("Estimated equations:", np.array(equations(result.x, true_sensitivity, d)))
