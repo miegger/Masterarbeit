@@ -104,9 +104,14 @@ class DGModel:
     sensitivity = self.get_sensitivity()
     x = sensitivity @ p
     diag = np.diag(x - p)
-    return 0.5 * (- diag + diag @ sensitivity)
+    return (-0.5*diag + 0.5*diag @ sensitivity)
   
-
+  def get_G(self, p, theta):
+    sensitivity = self.get_sensitivity()
+    x = sensitivity @ p
+    diag = np.diag(2 * theta * (x - p))
+    return (- diag + diag @ sensitivity)
+  
   def ofo_milp(self, prev_p, constraint=None):
     nabla = 0.1
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A
