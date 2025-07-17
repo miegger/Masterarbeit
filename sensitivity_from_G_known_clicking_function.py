@@ -4,7 +4,7 @@ from scipy.optimize import least_squares, minimize
 from helper.opinion_dynamics import DGModel
 
 # --- Simulation settings ---
-np.random.seed(10)
+np.random.seed(13)
 num_samples = 5
 d = 5  # Dimension of p and x
 A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
@@ -138,7 +138,7 @@ cons = [{'type': 'ineq', 'fun': constraint1},
         {'type': 'ineq', 'fun': constraint16}]
 
 num_vars = num_samples * d + d + d**2
-lower_bound = np.concatenate((-1 * np.ones(num_samples * d), -np.inf * np.ones(d), np.zeros(d**2)))
+lower_bound = np.concatenate((-1 * np.ones(num_samples * d), np.zeros(d), np.zeros(d**2)))
 upper_bound = np.concatenate((1 * np.ones(num_samples * d), np.inf * np.ones(d), np.ones(d**2)))
 initial_guess = np.concatenate((np.zeros(num_samples * d + d), 0.5 * np.ones(d**2)))
 
@@ -181,6 +181,11 @@ print("Estimated sensitivity matrix:\n", np.round(S_estimated, 3))
 print("True col sum:", np.round(np.sum(sim.get_sensitivity(), axis=0), 3))
 print("Estimated col sum:", np.round(np.sum(S_estimated, axis=0), 3))
 
+# Print estimation error
+true = sim.get_sensitivity()
+sensitivity_error_diag = np.mean(np.abs(np.diag(true) - np.diag(S_estimated)) / np.abs(np.diag(true))) * 100
+col_sum_error = np.mean(np.abs(np.sum(true, axis=0) - np.sum(S_estimated, axis=0)) / np.sum(true, axis=0)) * 100
+print(sensitivity_error_diag, col_sum_error)
 #print(result.fun)
 #print(P[0])
 #print(true_sensitivity[0])
