@@ -94,7 +94,7 @@ print("True:", np.round(true_sensitivity[-1], 3))
 
 
 
-###################################33
+###################################
 
 def equations(vars, G, d):
     n_G = 1  # number of G matrices
