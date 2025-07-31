@@ -84,13 +84,9 @@ for i in range(1):
     sim, P, CTR, G, true_sensitivity = generate_model(num_measurements=2, ideal=True, clicking_function='squared')
     d = G.shape[1]
     print(G[0])
-    print(np.linalg.matrix_rank(G[0]))
 
+    
     A_C, b = generate_measurement_matrix_C(G[0])
-    #A_C_dash, b_dash = generate_measurement_matrix_C(G[1])
-    #print(np.linalg.matrix_rank(np.vstack([A_C, A_C_dash])))
-    #print(np.vstack([A_C, A_C_dash]).shape)
-
     estimated_sensitivity, res, rank, sing_values = np.linalg.lstsq(A_C, b)
     estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
 
@@ -118,7 +114,6 @@ for i in range(1):
     #print("Rank:", rank)
 
     print("True sensitivity: \n", true_sensitivity)
-    print(np.linalg.matrix_rank(true_sensitivity))
     print("True col sums: \n", true_sensitivity.sum(axis=0))
 
     estimated_sensitivity = estimated_sensitivity.reshape((d, d), order='C')

@@ -1,11 +1,15 @@
 import numpy as np
 from helper.opinion_dynamics import DGModel
 
-def clicking_function_squared(p, opinions, theta):
+def clicking_function_linear(p, opinions):
+  """Clicking function model: 1/2 + 1/2 opinions * p"""
+  return 0.5 * np.ones_like(p) + 0.5 * opinions * p
+
+def clicking_function_squared(p, opinions, theta = 0.25*np.ones(5)):
   """Clicking function model: 1 - theta * (opinions - p)**2"""
   return np.ones_like(p) - theta*(opinions - p)**2
 
-def clicking_function_exponential(p, opinions, theta):
+def clicking_function_exponential(p, opinions, theta=np.ones(5)):
   """Clicking function model: exp(-theta * (opinions - p)**2)"""
   return np.exp(-theta*(opinions - p)**2)
 
@@ -42,10 +46,10 @@ def kalman_filter(delta_p, delta_cr, true_sensitivity, N):
     return l.reshape((N, N), order='F')
 
 
-def generate_model(num_measurements, ideal=True, clicking_function=['squared', 'exponential', 'exponential_half']):
+def generate_model(num_measurements, ideal=True, clicking_function=['squared', 'exponential', 'exponential_half', 'linear']):
   num_samples = num_measurements
   d = 5  # Dimension of p and x
-  A = np.array([[0.15, 0.15, 0.1, 0.2, 0.3],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
+  A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
   
   #A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0.1, 0.45, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
   
@@ -53,7 +57,11 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
   gamma_p = np.random.uniform(0.01, 0.5, d)
   sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
   theta = np.random.normal(0.25, 0.1, d)
+  if clicking_function == 'exponential': 
+    theta = np.random.normal(1, 0.25, d)
   
+  print("True theta:", theta)
+
   P = np.zeros((num_samples, d))
   if ideal:
     P = np.random.uniform(low=-1, high=1, size=(num_samples, d))
@@ -80,9 +88,10 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
       if clicking_function == 'squared':
         CTR_obs[i] = clicking_function_squared(P[i], X[i], theta=theta)
         G[i] = sim.get_G(P[i], theta=theta)
-
+      elif clicking_function == 'linear':
+        CTR_obs[i] = clicking_function_linear(P[i], X[i])
       elif clicking_function == 'exponential':
-        CTR_obs[i] = clicking_function_exponential(P[i], X[i], theta=np.ones(d))
+        CTR_obs[i] = clicking_function_exponential(P[i], X[i])
       elif clicking_function == 'exponential_half': 
         CTR_obs[i] = clicking_function_exponential_half(P[i], X[i])
 
