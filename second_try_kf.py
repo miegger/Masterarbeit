@@ -49,13 +49,13 @@ for i in range(num_samples):
     number_of_clicks = np.zeros(d)
     for j in range(40):
         x = sim.update(P[i])
-        number_of_clicks += (np.random.rand(d) < clicking_function1(P[i], x)).astype(int)
+        number_of_clicks += (np.random.rand(d) < clicking_function2(P[i], x)).astype(int)
 
     CTR_obs[i] = number_of_clicks / 40  # Average CTR over 40 trials
-    CTR_obs[i] = clicking_function1(P[i], sim.get_opinion())  # Average CTR over 40 trials
+    CTR_obs[i] = clicking_function2(P[i], sim.get_opinion())  # Average CTR over 40 trials
 
     X[i] = sim.get_opinion()
-    true_sensitivity[i] = sim.get_CR_sensitivity(P[i])
+    true_sensitivity[i] = sim.get_G(P[i], theta=0.25*np.ones(d))
 
 def kalman_filter(delta_p, delta_cr, true_sensitivity, N):
     sigma_r = 0.1 # Std of measurement noise --> low values we trust fully the CTR

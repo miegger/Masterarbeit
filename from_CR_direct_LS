@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import least_squares, root
-from helper.setup_project import generate_model
+from helper.setup_project import generate_model, clicking_function_squared
 
 def generate_A_linear(d, p, ctr):
     num_rounds = np.shape(p)[0]
@@ -48,56 +48,82 @@ def minimize_exponential_fixed_theta(x, d, p, ctr):
     #print(np.concatenate((clicking, row_stochastic)))
     return np.concatenate((clicking, row_stochastic))
 
-np.set_printoptions(precision=4)
-clicking_function = 'exponential' # linear, squared, exponential, exponential_half
+def same_max_index(arr1, arr2):
+    return np.argmax(arr1) == np.argmax(arr2)
+
+np.set_printoptions(precision=4, suppress=True)
+clicking_function = 'squared' # linear, squared, exponential, exponential_half
 d = 5
 
-sim, P, CTR, _, true_sensitivity = generate_model(num_measurements=20, ideal=True, clicking_function=clicking_function)
+for i in range(1):
+    sim, P, CTR, _, true_sensitivity = generate_model(num_measurements=20, ideal=True, clicking_function=clicking_function)
 
-print("True sensitivity:\n", true_sensitivity)
-print("True col sums: \n", true_sensitivity.sum(axis=0))
-print("True row sums: \n", true_sensitivity.sum(axis=1))
+    #print("True sensitivity:\n", true_sensitivity)
+    #print("True col sums: \n", true_sensitivity.sum(axis=0))
+
+    print(CTR)
+
+    estimated_sensitivity = 0
+
+    if clicking_function == 'linear':
+        A, b = generate_A_linear(d, P, CTR)
+        estimated_sensitivity, res, rank, sing_values = np.linalg.lstsq(A, b)
+        estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
+
+        print("Rank:", rank)
+        print("Estimated sensitivity:\n", estimated_sensitivity.reshape((d, d), order='C'))
+
+    elif clicking_function == 'squared':
+        #F = minimize_squared(np.concatenate((true_sensitivity.flatten(order='C'), 0.25*np.ones(d))), d, P, CTR)
+        #print(F)
+        
+        result = least_squares(minimize_squared, np.concatenate((np.zeros(d*d), 0.25*np.ones(d))), bounds=(np.zeros(d*d + d), np.ones(d*d + d)), verbose=1, args=(d, P, CTR)).x
+        estimated_sensitivity = result[:d*d]
+        estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
+        estimated_sensitivity = estimated_sensitivity.reshape((d, d), order='C')
+        theta = result[d*d:]
+        
+        #print("Estimated theta:", theta)
+
+        
+        #print("Estimated sensitivity:\n", estimated_sensitivity)
+        #print("Estimated col sums: \n", estimated_sensitivity.sum(axis=0))
+
+        #print("Position: ", P[0])
+        #print("X-True: ", true_sensitivity @ P[0].T)
+        #print("X-Estimated: ", estimated_sensitivity @ P[0].T)
+
+        #print("CTR true: ", CTR[0])
+        #print("CTR estimated: ", clicking_function_squared(P[0], estimated_sensitivity @ P[0].T, theta))
+
+    elif clicking_function == 'exponential':
+        """
+        F = minimize_exponential(np.concatenate((true_sensitivity.flatten(order='C'), np.ones(d))), d, P, CTR)
+        F = minimize_exponential_fixed_theta(true_sensitivity.flatten(order='C'), d, P, CTR)
+        print(F)
+        """
+        #estimated_sensitivity = least_squares(minimize_exponential_fixed_theta, np.zeros(d*d), bounds=(np.zeros(d*d), np.ones(d*d)), verbose=1, args=(d,P,CTR), method='dogbox',ftol=1e-12,gtol=1e-12,xtol=1e-12).x
+        
+        result = least_squares(minimize_exponential, np.concatenate((np.zeros(d*d), np.ones(d))), bounds=(np.zeros(d*d + d), np.concatenate((np.ones(d*d), 2*np.ones(d)))), verbose=1, args=(d, P, CTR)).x
+        estimated_sensitivity = result[:d*d]
+        estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
+        theta = result[d*d:]    
+        print("Estimated theta:", theta)
 
 
-if clicking_function == 'linear':
-    A, b = generate_A_linear(d, P, CTR)
-    estimated_sensitivity, res, rank, sing_values = np.linalg.lstsq(A, b)
-    estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
-
-    print("Rank:", rank)
-    print("Estimated sensitivity:\n", estimated_sensitivity.reshape((d, d), order='C'))
-
-elif clicking_function == 'squared':
-    #F = minimize_squared(np.concatenate((true_sensitivity.flatten(order='C'), 0.25*np.ones(d))), d, P, CTR)
-    #print(F)
+        print("Estimated sensitivity:\n", estimated_sensitivity.reshape((d, d), order='C'))
+        print("Estimated col sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=0))
+        print("Estimated row sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=1))
     
-    result = least_squares(minimize_squared, np.concatenate((np.zeros(d*d), 0.25*np.ones(d))), bounds=(np.zeros(d*d + d), np.ones(d*d + d)), verbose=1, args=(d, P, CTR)).x
-    estimated_sensitivity = result[:d*d]
-    estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
-    theta = result[d*d:]
-    
-    print("Estimated theta:", theta)
+    else:
+        print("Clicking function not implemented yet.")
+        continue
 
+    found_influencer = same_max_index(true_sensitivity.sum(axis=0), estimated_sensitivity.sum(axis=0))
 
-    print("Estimated sensitivity:\n", estimated_sensitivity.reshape((d, d), order='C'))
-    print("Estimated col sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=0))
+    if found_influencer == False:
+        print("True sensitivity: \n", true_sensitivity)
+        print("True col sums: \n", true_sensitivity.sum(axis=0))
 
-elif clicking_function == 'exponential':
-    """
-    F = minimize_exponential(np.concatenate((true_sensitivity.flatten(order='C'), np.ones(d))), d, P, CTR)
-    F = minimize_exponential_fixed_theta(true_sensitivity.flatten(order='C'), d, P, CTR)
-    print(F)
-    """
-    #estimated_sensitivity = least_squares(minimize_exponential_fixed_theta, np.zeros(d*d), bounds=(np.zeros(d*d), np.ones(d*d)), verbose=1, args=(d,P,CTR), method='dogbox',ftol=1e-12,gtol=1e-12,xtol=1e-12).x
-    
-    result = least_squares(minimize_exponential, np.concatenate((np.zeros(d*d), np.ones(d))), bounds=(np.zeros(d*d + d), np.concatenate((np.ones(d*d), 2*np.ones(d)))), verbose=1, args=(d, P, CTR)).x
-    estimated_sensitivity = result[:d*d]
-    estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
-    theta = result[d*d:]    
-    print("Estimated theta:", theta)
-
-
-    print("Estimated sensitivity:\n", estimated_sensitivity.reshape((d, d), order='C'))
-    print("Estimated col sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=0))
-    print("Estimated row sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=1))
-    
+        print("Estimated sensitivity: \n", estimated_sensitivity)
+        print("Estimated col sums: \n", estimated_sensitivity.sum(axis=0))

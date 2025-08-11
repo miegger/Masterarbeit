@@ -100,12 +100,6 @@ class DGModel:
     diag_p = np.diag(p)
     return 0.5 * (diag_Sp + diag_p @ sensitivity)
   
-  def get_CR_sensitivity2(self, p):
-    sensitivity = self.get_sensitivity()
-    x = sensitivity @ p
-    diag = np.diag(x - p)
-    return (-0.5*diag + 0.5*diag @ sensitivity)
-  
   def get_G(self, p, theta):
     sensitivity = self.get_sensitivity()
     x = sensitivity @ p

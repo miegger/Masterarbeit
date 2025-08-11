@@ -73,17 +73,52 @@ def find_max_z(N, x_est, c):
             print("Min LP failed:", res_min.message)
 
 
+def clicking_function_squared(p, opinions, theta = 0.25*np.ones(5)):
+  """Clicking function model: 1 - theta * (opinions - p)**2"""
+  return np.ones_like(p) - theta*(opinions - p)**2
 
+def estimate_derivative(P, sensitivity, d, h=0.01):
+    y = np.zeros(d)
+    for i in range(d):
+        p_dash = np.copy(P)
+        p_dash[i]+= h
+        if(p_dash[i] > 1):
+            p_dash[i] -= 2*h
+
+        X = sensitivity @ P
+        x_dash = sensitivity @ p_dash
+
+        diff = ((clicking_function_squared(p_dash, x_dash) - clicking_function_squared(P, X)) / h)
+        print(diff)
+        y[i] = diff[i]
+
+    return y
+
+def estimate_derivative2(P, sensitivity, d, h=0.1):
+    y = np.zeros(d)
+    for i in range(1):
+        p_dash = np.copy(P)
+        p_dash[i]+= h
+        if(p_dash[i] > 1):
+            p_dash[i] -= 2*h
+
+        X = sensitivity @ P
+        x_dash = sensitivity @ p_dash
+
+        diff = ((clicking_function_squared(p_dash, x_dash) - clicking_function_squared(P, X)) / (X - x_dash))
+        print(diff)
+        #y[i] = diff[i]
+
+    #return y
 
 np.set_printoptions(precision=4)
 
 num_missmatch = np.zeros(50)
 found_influencer = np.zeros(50)
 
-for i in range(1):
-    sim, P, CTR, G, true_sensitivity = generate_model(num_measurements=2, ideal=True, clicking_function='squared')
+for i in range(50):
+    sim, P, CTR, G, true_sensitivity = generate_model(num_measurements=1, ideal=True, clicking_function='squared')
     d = G.shape[1]
-    print(G[0])
 
     
     A_C, b = generate_measurement_matrix_C(G[0])
@@ -113,16 +148,19 @@ for i in range(1):
 
     #print("Rank:", rank)
 
-    print("True sensitivity: \n", true_sensitivity)
-    print("True col sums: \n", true_sensitivity.sum(axis=0))
-
     estimated_sensitivity = estimated_sensitivity.reshape((d, d), order='C')
-    print("Estimated sensitivity: \n", estimated_sensitivity)
-    print("Estimated col sums: \n", estimated_sensitivity.sum(axis=0))
+
 
     num_missmatch[i] = count_ranking_errors(true_sensitivity.sum(axis=0), estimated_sensitivity.sum(axis=0))
     found_influencer[i] = same_max_index(true_sensitivity.sum(axis=0), estimated_sensitivity.sum(axis=0))
 
+    if found_influencer[i] == False:
+        print("True sensitivity: \n", true_sensitivity)
+        print("True col sums: \n", true_sensitivity.sum(axis=0))
 
-#print("Average number of ranking errors:", np.mean(num_missmatch))
-#print("False nr. 1 influencer:", np.sum(found_influencer == False))
+        print("Estimated sensitivity: \n", estimated_sensitivity)
+        print("Estimated col sums: \n", estimated_sensitivity.sum(axis=0))
+
+
+print("Average number of ranking errors:", np.mean(num_missmatch))
+print("False nr. 1 influencer:", np.sum(found_influencer == False))
