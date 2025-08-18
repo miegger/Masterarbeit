@@ -17,6 +17,10 @@ def clicking_function_exponential_half(p, opinions):
   """Clicking function model: 0.5 + 0.5*exp(-4 * (opinions - p)**2)"""
   return 0.5*np.ones_like(p) + 0.5*np.exp(-4*(opinions - p)**2)
 
+def clicking_function_combined(p, opinions, theta=0.5*np.ones(5)):
+  """Clicking function model: 0.5(1-theta) + theta * exp(-4 * (opinions - p)**2)"""
+  return 0.5*(np.ones_like(p) - theta) + theta*np.exp(-4*(opinions - p)**2)
+
 def kalman_filter(delta_p, delta_cr, true_sensitivity, N):
     sigma_r = 0.1 # Std of measurement noise --> low values we trust fully the CTR
     sigma_q = 0.1 # Std of process noise
@@ -46,7 +50,7 @@ def kalman_filter(delta_p, delta_cr, true_sensitivity, N):
     return l.reshape((N, N), order='F')
 
 
-def generate_model(num_measurements, ideal=True, clicking_function=['squared', 'exponential', 'exponential_half', 'linear']):
+def generate_model(num_measurements, ideal=True, clicking_function=['squared', 'exponential', 'exponential_half', 'linear', 'combined']):
   num_samples = num_measurements
   d = 5  # Dimension of p and x
   A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
@@ -59,6 +63,8 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
   theta = np.random.normal(0.25, 0.1, d)
   if clicking_function == 'exponential': 
     theta = np.random.normal(1, 0.25, d)
+  if clicking_function == 'combined': 
+    theta = np.random.normal(0.5, 0.25, d)
   
   print("True theta:", theta)
 
@@ -86,7 +92,7 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
       X[i] = sensitivity @ P[i]
 
       if clicking_function == 'squared':
-        CTR_obs[i] = clicking_function_squared(P[i], X[i], theta=theta)
+        CTR_obs[i] = clicking_function_squared(P[i], X[i], theta=np.ones(d)*0.25) #np.random.normal(0.25, 0.1))
         G[i] = sim.get_G(P[i], theta=theta)
       elif clicking_function == 'linear':
         CTR_obs[i] = clicking_function_linear(P[i], X[i])
@@ -94,6 +100,8 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
         CTR_obs[i] = clicking_function_exponential(P[i], X[i])
       elif clicking_function == 'exponential_half': 
         CTR_obs[i] = clicking_function_exponential_half(P[i], X[i])
+      elif clicking_function == 'combined':
+        CTR_obs[i] = clicking_function_combined(P[i], X[i], theta=theta)
 
     return (sim, P, CTR_obs, G, sensitivity)
   
