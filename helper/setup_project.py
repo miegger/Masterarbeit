@@ -64,9 +64,9 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
   if clicking_function == 'exponential': 
     theta = np.random.normal(1, 0.25, d)
   if clicking_function == 'combined': 
-    theta = np.random.normal(0.5, 0.25, d)
+    theta = np.random.uniform(0, 1, d)
   
-  print("True theta:", theta)
+  #print("True theta:", theta)
 
   P = np.zeros((num_samples, d))
   if ideal:
@@ -103,7 +103,7 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
       elif clicking_function == 'combined':
         CTR_obs[i] = clicking_function_combined(P[i], X[i], theta=theta)
 
-    return (sim, P, CTR_obs, G, sensitivity)
+    return (sim, P, CTR_obs, theta, sensitivity)
   
   else:
     G_est = kalman_filter(np.diff(P, axis=0), np.diff(CTR_obs, axis=0), sensitivity, d)
@@ -111,7 +111,7 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
     print("Estimation:", np.round(G_est, 3))
     print("True:", np.round(sim.get_G(P[i], np.ones(d)*0.25), 3))
 
-    return (sim, P, CTR_obs, G_est, sensitivity)
+    return (sim, P, CTR_obs, theta, sensitivity)
 
 #sim, P, CTR, G, true_sensitivity = generate_model(num_measurements=1, clicking_function='squared')
 
