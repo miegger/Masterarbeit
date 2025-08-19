@@ -140,3 +140,15 @@ class DGModel:
     phi = 2 * (np.linalg.inv(np.eye(self.N) - A_tilde) @ np.diag(delta) @ self.gamma).T @ (self.x - np.ones(self.N))
     return np.clip(prev_p - nabla * phi, -1, 1), delta
   """
+
+class Delta_DGModel:
+  def __init__(self, N, gamma, A, x_0, delta=np.ones(5)):
+    self.N = N
+    self.gamma = np.diag(gamma)
+    self.A = A
+    self.x = x_0
+    self.delta = np.diag(delta)
+  
+  def update(self):
+    self.x = (np.eye(self.N) - self.delta @ self.gamma) @ self.A @ self.x + self.delta @ self.gamma @ np.ones(self.N)
+    return self.x
