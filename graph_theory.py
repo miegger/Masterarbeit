@@ -19,38 +19,23 @@ A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05
 
 #exteneded de groot
 gamma = np.diag(np.random.uniform(0.01, 0.5, 5))
-delta = np.diag([1,0,0,0,0])
+delta = np.diag([0,0,0,0,1])
 
 x_0 = np.random.uniform(-1, 1, 5)
 print(0.4 * x_0[1] + 0.6 * x_0[4])
 print(x_0)
 
 S = np.linalg.inv((np.eye(5) - (np.eye(5) - gamma) @ A)) @ gamma
-print("Sensitivity: \n", S @ np.diag(delta))
+print("Sensitivity: \n", S)
 print("Col sum: ", np.sum(S, axis=0))
 
+phi = (np.eye(5) - delta @ gamma) @ A
+print(np.linalg.eigvals(phi))
 S_delta = np.linalg.inv((np.eye(5) - (np.eye(5) - delta @ gamma) @ A)) @ delta @ gamma
-print("SS???", S_delta) #NOOOO
+X_SS = S_delta @ np.ones(5)
+print(S_delta)
+print("SS???", X_SS) #NOOOO
 
-def build_Phi(A, Gamma, Delta):
-    I = np.eye(A.shape[0])
-    return (I - Delta.dot(Gamma)).dot(A)
-
-def analytic_steady_state(A, Gamma, Delta, p):
-    Phi = build_Phi(A, Gamma, Delta)
-    b = Delta.dot(Gamma).dot(p)
-    I = np.eye(A.shape[0])
-    M = I - Phi
-    # try direct solve; if singular, return pseudo-inverse solution
-    try:
-        x_star = sla.solve(M, b)
-        method = "direct_solve"
-    except Exception as e:
-        x_star = np.linalg.pinv(M).dot(b)
-        method = "pinv"
-    return x_star, Phi, b, method
-
-print(analytic_steady_state(A, gamma, delta, np.ones(5)))
 
 
 simulation_steps = 100

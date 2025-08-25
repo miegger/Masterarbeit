@@ -66,21 +66,16 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
   if clicking_function == 'combined': 
     theta = np.random.uniform(0, 1, d)
   
-  #print("True theta:", theta)
+  P = np.random.uniform(low=-1, high=1, size=(num_samples, d))
 
-  P = np.zeros((num_samples, d))
-  if ideal:
-    P = np.random.uniform(low=-1, high=1, size=(num_samples, d))
-  else: # Start from a random initial point in [-1, 1]
-    P[0] = np.random.uniform(low=-1, high=1, size=(d,))
-
+  """
     # Random walk: each step changes slightly from the previous
     for i in range(1, num_samples):
         step = np.random.uniform(low=-0.05, high=0.05, size=(d,))
         P[i] = P[i - 1] + step
         # Optional: Clip to stay in [-1, 1]
         P[i] = np.clip(P[i], -1, 1)
-  
+  """
   sensitivity = sim.get_sensitivity()
   
   CTR_obs = np.zeros((num_samples, d))  # Observed CTRs
@@ -92,7 +87,7 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
       X[i] = sensitivity @ P[i]
 
       if clicking_function == 'squared':
-        CTR_obs[i] = clicking_function_squared(P[i], X[i], theta=np.ones(d)*0.25) #np.random.normal(0.25, 0.1))
+        CTR_obs[i] = clicking_function_squared(P[i], X[i], theta=theta) #np.random.normal(0.25, 0.1))
         G[i] = sim.get_G(P[i], theta=theta)
       elif clicking_function == 'linear':
         CTR_obs[i] = clicking_function_linear(P[i], X[i])
@@ -106,11 +101,14 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
     return (sim, P, CTR_obs, theta, sensitivity)
   
   else:
-    G_est = kalman_filter(np.diff(P, axis=0), np.diff(CTR_obs, axis=0), sensitivity, d)
-
-    print("Estimation:", np.round(G_est, 3))
-    print("True:", np.round(sim.get_G(P[i], np.ones(d)*0.25), 3))
-
+    for i in range(num_samples):
+      if clicking_function == 'combined':
+        for j in range(40):
+          sim.update(P[i])
+        for j in range(20):
+          CTR_obs[i] += clicking_function_combined(P[i], sim.update(P[i]), theta= theta)
+        CTR_obs[i] /= 20
+      
     return (sim, P, CTR_obs, theta, sensitivity)
 
 #sim, P, CTR, G, true_sensitivity = generate_model(num_measurements=1, clicking_function='squared')
