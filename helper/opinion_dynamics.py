@@ -64,27 +64,44 @@ class DGModel:
     return self.x
   
   def ofo(self, prev_p, constraint=None):
-    nabla = 0.1
+    eta = 0.05
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
     
-    phi = sensitivity.T @ (self.x - np.ones(self.N))
-    p = prev_p - nabla * phi
+    phi = sensitivity.T @ (-1*np.ones(self.N))
+    p = prev_p - eta * phi
 
     p = projection_box(p, (-1, 1))
     p = projection_l1_ball(p, constraint) if constraint is not None else p
     return p
   
 
-  def ofo_sensitivity(self, prev_p, sensitivity):
-    nabla = 0.1
+  def ofo_sensitivity(self, prev_p, sensitivity, constraint=None):
+    eta = 0.05
     sigma_pe = 0.07
 
-    phi = sensitivity.T @ (self.x - np.ones(self.N))
-    p = prev_p - nabla * phi + np.random.normal(0, sigma_pe, self.N)
+    phi = sensitivity.T @ (-1*np.ones(self.N))
+    p = prev_p - eta * phi + np.random.normal(0, sigma_pe, self.N)
+    
     p = projection_box(p, (-1, 1))
+    p = projection_l1_ball(p, constraint) if constraint is not None else p
     return p
+  
+  def evolve_A(self):
+    perturbation = np.random.normal(0, 0.01, (self.N, self.N)) * (np.random.rand(self.N, self.N) > 0.95)
+    self.A = self.A + perturbation
+    self.A = np.clip(self.A, 0, None)  # Ensure non-negativity
+    for it, row in enumerate(self.A):
+        row_sums = row.sum()
+        if row_sums == 0:
+            self.A[it][it] = 1
+            row_sums = 1
+        self.A[it] = self.A[it] / row_sums
 
+  def flip_A(self):
+    i = 0
+    j = 2
+    self.A[:, [i, j]] = self.A[:, [j, i]]
 
   def get_sensitivity(self):
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from helper.opinion_dynamics import DGModel, generate_adjacency_matrix
+import cvxpy as cp
 
 
 def calculate_clicking_probability(x, p):
@@ -20,7 +21,8 @@ def update_number_of_clicks_2(number_of_clicks, x, p):
     return number_of_clicks
 
 # Parameters
-simulation_steps = 30
+np.set_printoptions(precision=4, suppress=True)
+simulation_steps = 300
 N = 5
 
 # Fixed matrix and parameters
@@ -48,7 +50,7 @@ for i in range(simulation_steps):
     opinions[i + 1] = sim.update(p=position[i])
     position[i + 1] = sim.ofo(prev_p=position[i], constraint=None)
     
-print("Constraint None: position", position[-1], "cost function", 0.5 * np.linalg.norm((opinions[-1] - np.ones(N))**2, ord=2))
+print("Constraint None: position", position[-1], "cost function", np.sum((opinions[-1])))
 fig, axs = plt.subplots(3, 1, figsize=(24, 8), sharex=True)
 fig2, ax2 = plt.subplots(3, 1, figsize=(24, 8), sharex=True)
 
@@ -79,7 +81,7 @@ for i in range(simulation_steps):
     opinions[i + 1] = sim.update(p=position[i])
     position[i + 1] = sim.ofo(prev_p=position[i], constraint=2)
     
-print("Constraint 2: position", position[-1], "cost function", 0.5 * np.linalg.norm(opinions[-1] - np.ones(N), ord=2)**2)
+print("Constraint 2: position", position[-1], "cost function", np.sum((opinions[-1])))
 
 
 # Plot 1: Opinion Dynamics (OFO)
@@ -99,13 +101,20 @@ opinions = np.zeros((simulation_steps + 1, N))
 opinions[0] = x_0
 
 position = np.zeros((simulation_steps + 1, N))
-delta = np.zeros((simulation_steps + 1, N))
-delta[0] = np.ones(N)
+
+p = cp.Variable(N)
+x_ss = sim.get_sensitivity() @ p
+
+objective = cp.Minimize(-1*cp.sum(x_ss))
+constraints = [cp.norm1(p) <= 2, p >= -1, p <= 1]
+prob = cp.Problem(objective, constraints)
+prob.solve()
+
 
 for i in range(simulation_steps):
-    opinions[i + 1] = sim.update(p=np.array([0, 1, 0, 0, 1]))
+    opinions[i + 1] = sim.update(p=p.value)
 
-print("Constraint 2 optimal: position", np.array([0, 1, 0, 0, 1]), "cost function", 0.5 * np.linalg.norm(opinions[-1] - np.ones(N), ord=2)**2)
+print("Constraint 2 optimal: position", p.value, "cost function", np.sum((opinions[-1])))
 
 
 # Plot 1: Opinion Dynamics (OFO)
