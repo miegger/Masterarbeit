@@ -42,7 +42,9 @@ P[0] = p_0
 P_ideal[0] = p_0
 
 sensitivity_error = np.zeros(num_of_triggers)
+rel_sensitivity_error_diag = np.zeros(num_of_triggers)
 theta_error = np.zeros(num_of_triggers)
+rel_theta_error = np.zeros(num_of_triggers)
 
 estimated_theta = 0
 estimated_sensitivity = 0
@@ -50,7 +52,7 @@ estimated_sensitivity = 0
 trigger = 0
 start_range = 0
 for i in range(simulation_steps):
-    if i % 100 <= 20:  # First 20 steps: give time to converge
+    if i % 100 <= 40:  # First 20 steps: give time to converge
         X[i + 1] = sim.update(p=P[trigger])
         X_ideal[i + 1] = sim_ideal.update(p=P_ideal[trigger])
     else: # Last 60 steps: measure CTR
@@ -62,8 +64,8 @@ for i in range(simulation_steps):
 
         if i % 100 == 99: # End of trigger period: average CTR, estimate sensitivity and choose new P
             #print("Trigger", trigger + 1)
-            CTR_obs[trigger] /= 80
-            CTR_obs_ideal[trigger] /= 80
+            CTR_obs[trigger] /= 60
+            CTR_obs_ideal[trigger] /= 60
             #print("Observed CTR:", CTR_obs[trigger])
             #print("Ideal CTR:", clicking_function_combined(P[trigger], X[i], theta=theta))
 
@@ -77,7 +79,9 @@ for i in range(simulation_steps):
             estimated_theta = result[d*d:]
 
             sensitivity_error[trigger] = np.linalg.norm(estimated_sensitivity - sim.get_sensitivity(), ord='fro')
+            rel_sensitivity_error_diag[trigger] = 100 * np.linalg.norm(np.diag(estimated_sensitivity - sim.get_sensitivity()), ord=1) / np.linalg.norm(np.diag(sim.get_sensitivity()), ord=1)
             theta_error[trigger] = np.linalg.norm(estimated_theta - theta, ord=2)
+            rel_theta_error[trigger] = 100 * np.linalg.norm(estimated_theta - theta, ord=1) / np.linalg.norm(theta, ord=1)
 
             #print("Estimated theta:", estimated_theta)
             #print("Estimated sensitivity:\n", estimated_sensitivity)
@@ -104,6 +108,14 @@ print(P_ideal[-1])
 
 plt.plot(sensitivity_error, label='Sensitivity error')
 plt.plot(theta_error, label='Theta error')
+plt.legend()
+plt.grid()
+plt.show()
+
+plt.plot(rel_sensitivity_error_diag, label='Sensitivity error')
+plt.plot(rel_theta_error, label='Theta error')
+plt.title("Relative errror in %")
+plt.xlabel("Time step")
 plt.legend()
 plt.grid()
 plt.show()

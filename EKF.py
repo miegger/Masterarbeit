@@ -29,17 +29,17 @@ def same_max_index(arr1, arr2):
 
 np.set_printoptions(precision=4, suppress=True)
 d = 5
-num_measurements = 500
+num_measurements = 3000
 
 
 for i in range(1):
-    sim, P, CTR, true_theta, true_sensitivity = generate_model(num_measurements=num_measurements, ideal=True, clicking_function='combined')
+    sim, P, CTR, true_theta, true_sensitivity = generate_model(num_measurements=num_measurements, ideal=False, clicking_function='combined')
 
     estimated_sensitivity = 0
     state = 0.5*np.ones(d**2 + d) # Flattened sensitivity and theta
     
-    sigma_r = 0.001 # Std of measurement noise --> low values we trust fully the CTR
-    sigma_q = 0.0001 # Std of process noise
+    sigma_r = 10 # Std of measurement noise --> low values we trust fully the CTR
+    sigma_q = 0.1 # Std of process noise
 
     H = np.zeros((d, d**2 + d))
     sigma = np.eye(d**2 + d)
@@ -54,6 +54,18 @@ for i in range(1):
     #s = np.concatenate((true_sensitivity.flatten(order='C'), true_theta))
     #print(calculate_H(P[0], s) @ s, np.concatenate((CTR[i] - 0.5, np.ones(d))))
 
+    """
+    # Calculate H Rank
+    Hs = []
+    for i in range(num_measurements):
+        Hs.append(calculate_H(P[i], state))
+
+    H_concat = np.concatenate(Hs, axis=0)
+    print("Shape of concatenated H:", H_concat.shape)
+    print("Rank of concatenated H:", np.linalg.matrix_rank(H_concat))
+    """
+
+
     for i in range(num_measurements):
         H = calculate_H(P[i], state)
         K = sigma @ np.transpose(H) @ np.linalg.inv(R + H @ sigma @ np.transpose(H))
@@ -62,8 +74,9 @@ for i in range(1):
 
         sigma = sigma + Q - K @ H @ sigma
 
-
-        Error_sensitivity[i] = np.linalg.norm(state[0:d**2].reshape((d, d), order='C') - true_sensitivity, ord='fro')
+        
+        #Error_sensitivity[i] = np.linalg.norm(state[0:d**2].reshape((d, d), order='C') - true_sensitivity, ord='fro')
+        Error_sensitivity[i] = 100 * np.linalg.norm(np.diag(state[0:d**2].reshape((d, d), order='C') - true_sensitivity), ord=1) / np.linalg.norm(np.diag(true_sensitivity), ord=1)
         Error_theta[i] = np.linalg.norm(state[d**2:] - true_theta)
 
         if(i >= num_measurements - 2):

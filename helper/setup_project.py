@@ -104,7 +104,7 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
       elif clicking_function == 'squared combined':
         CTR_obs[i] = clicking_function_squared_combined(P[i], X[i], theta=theta)
       elif clicking_function == 'mixed':
-        CTR_obs[i,1:3] = clicking_function_squared_combined(P[i,1:3], X[i,1:3], theta=theta[1:3])
+        CTR_obs[i,1:3] = clicking_function_linear(P[i,1:3], X[i,1:3])
         CTR_obs[i,0] = clicking_function_combined(P[i,0], X[i,0], theta=theta[0])
         CTR_obs[i,3:] = clicking_function_combined(P[i,3:], X[i,3:], theta=theta[3:])
 
