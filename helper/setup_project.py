@@ -115,9 +115,9 @@ def generate_model(num_measurements, ideal=True, clicking_function=['squared', '
       if clicking_function == 'combined':
         for j in range(40):
           sim.update(P[i])
-        for j in range(20):
-          CTR_obs[i] += clicking_function_combined(P[i], sim.update(P[i]), theta= theta)
-        CTR_obs[i] /= 20
+        for j in range(60):
+          CTR_obs[i] += np.random.rand() < clicking_function_combined(P[i], sim.update(P[i]), theta=theta)
+        CTR_obs[i] /= 60
       
     return (sim, P, CTR_obs, theta, sensitivity)
 
