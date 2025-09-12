@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.optimize import minimize
 from jaxopt.projection import projection_l1_ball, projection_box
 
 def generate_adjacency_matrix(n):
@@ -11,6 +12,28 @@ def generate_adjacency_matrix(n):
             row_sums = 1
         A[it] = A[it] / row_sums
     return A
+
+
+def projection(p, kappa):
+  d = len(p)
+    
+  # Objective: minimize ||z - p||^2
+  def obj(z):
+    return 0.5 * np.sum((z - p)**2)
+    
+  # Constraints
+  cons = []
+    
+  # l1 norm constraint
+  cons.append({'type': 'ineq', 'fun': lambda z: kappa - np.sum(np.abs(z))})
+    
+  # Bounds 0 <= z_i <= 1
+  bounds = [(0,1)] * d
+    
+  # Solve
+  result = minimize(obj, np.clip(p, 0, 1), bounds=bounds, constraints=cons, method='SLSQP')
+  #print("Projection success:", result.success, "Message:", result.message)
+  return result.x
 
 ## Friedkin-Johnsen model
 class FJModel:
@@ -28,25 +51,34 @@ class FJModel:
     self.x = (np.eye(self.N) - self.gamma_p - self.gamma_d) @ self.A @ self.x + self.gamma_p @ p + self.gamma_d @ self.d #@ np.clip(self.d + uncertainty, -1, 1)
     return self.x
   
-  def feedforward(self):
+  def get_sensitivity(self):
     A_tilde = (np.eye(self.N) - self.gamma_p - self.gamma_d) @ self.A
-    inverse = np.linalg.inv(np.eye(self.N) - A_tilde) 
-    return -1 * np.linalg.inv((inverse @ self.gamma_p - np.eye(self.N))) @ inverse @ self.gamma_d @ self.d
-
-  def ofo(self, prev_p): ### THere are some mistakes!!!
-    nabla = 0.5
+    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma_p
+    return sensitivity
+  
+  def ofo(self, prev_p, constraint=None):
+    eta = 0.075
     A_tilde = (np.eye(self.N) - self.gamma_p - self.gamma_d) @ self.A
-    phi = 0.5 * (np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma_p - np.eye(self.N)) @ (self.x - prev_p)
-    return np.clip(prev_p - nabla * phi, -1, 1)
+    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma_p
+    
+    phi = sensitivity.T @ (-1*np.ones(self.N))
+    p = prev_p - eta * phi
 
+    #p = projection_box(p, (-1, 1))
+    #p = projection_l1_ball(p, constraint) if constraint is not None else p
+    return projection(p, kappa=constraint)
+  
 
-def compute_delta(sensitivity, constraints):
-  column_sums = np.sum(sensitivity, axis=0)
-  max_indices = np.argsort(column_sums)[-constraints:]  # Get indices of top `constraints` columns
-  delta = np.zeros(sensitivity.shape[1])
-  delta[max_indices] = 1
-  print(column_sums, delta)
-  return delta
+  def ofo_sensitivity(self, prev_p, sensitivity, constraint=None):
+    eta = 0.075
+    sigma_pe = 0.07
+
+    phi = sensitivity.T @ (-1*np.ones(self.N))
+    p = prev_p - eta * phi + np.random.normal(0, sigma_pe, self.N)
+    
+    #p = projection_box(p, (-1, 1))
+    #p = projection_l1_ball(p, constraint) if constraint is not None else p
+    return projection(p, kappa=constraint)
 
 
 
@@ -62,30 +94,33 @@ class DGModel:
   def update(self, p):
     self.x = (np.eye(self.N) - self.gamma) @ self.A @ self.x + self.gamma @ p
     return self.x
+
   
   def ofo(self, prev_p, constraint=None):
-    eta = 0.05
+    eta = 0.075
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
     
     phi = sensitivity.T @ (-1*np.ones(self.N))
     p = prev_p - eta * phi
 
-    p = projection_box(p, (-1, 1))
-    p = projection_l1_ball(p, constraint) if constraint is not None else p
-    return p
+    #p = projection_box(p, (-1, 1))
+    #p = projection_l1_ball(p, constraint) if constraint is not None else p
+    return projection(p, kappa=constraint)
   
 
   def ofo_sensitivity(self, prev_p, sensitivity, constraint=None):
-    eta = 0.05
+    eta = 0.075
     sigma_pe = 0.07
 
     phi = sensitivity.T @ (-1*np.ones(self.N))
     p = prev_p - eta * phi + np.random.normal(0, sigma_pe, self.N)
     
-    p = projection_box(p, (-1, 1))
-    p = projection_l1_ball(p, constraint) if constraint is not None else p
-    return p
+    #p = projection_box(p, (-1, 1))
+    #p = projection_l1_ball(p, constraint) if constraint is not None else p
+    return projection(p, kappa=constraint)
+  
+
   
   def evolve_A(self):
     perturbation = np.random.normal(0, 0.01, (self.N, self.N)) * (np.random.rand(self.N, self.N) > 0.95)

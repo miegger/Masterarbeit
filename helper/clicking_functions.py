@@ -64,6 +64,18 @@ def minimize_combined(x, d, p, ctr):
 
     return np.concatenate((clicking, row_stochastic))
 
+def minimize_combined_scalar(x, d, p, ctr):
+    num_rounds = np.shape(p)[0]
+
+    sensitivity = x[:d*d].reshape((d, d), order='C')
+    theta = x[d*d:]
+    x = sensitivity @ p.T
+
+    #row_stochastic = np.sum(sensitivity, axis=1) - np.ones(d)
+    clicking = 0.5*(1 - np.tile(theta, num_rounds).T) + np.tile(theta, num_rounds).T*np.exp(-4*(x.flatten(order='F') - p.flatten(order='C'))**2) - ctr.flatten(order='C')
+
+    return np.linalg.norm(clicking, ord=1)**2
+
 def minimize_exponential_fixed_theta(x, d, p, ctr):
     num_rounds = np.shape(p)[0]
 

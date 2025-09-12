@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import least_squares
-from helper.opinion_dynamics import DGModel
-from helper.clicking_functions import clicking_function_combined, minimize_combined
+from scipy.optimize import least_squares, minimize
+from helper.opinion_dynamics import DGModel, FJModel
+from helper.clicking_functions import clicking_function_combined, minimize_combined, minimize_combined_scalar
 
 
 # Parameters
@@ -21,13 +21,16 @@ x_0 = np.random.uniform(-1, 1, d)
 p_0 = np.random.uniform(-1, 1, d)
 p_0 = (p_0 / np.linalg.norm(p_0, 1)) * kappa
 gamma_p = np.random.uniform(0.01, 0.5, d)
-sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
-sim_ideal = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+gamma_d = np.random.uniform(0.01, 0.25, d)
+#sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+#sim_ideal = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+sim = FJModel(N=d, gamma_p=gamma_p, gamma_d=gamma_d, A=A, x_0=x_0)
+sim_ideal = FJModel(N=d, gamma_p=gamma_p, gamma_d=gamma_d, A=A, x_0=x_0)
 theta = np.random.uniform(0, 1, d)
 
 print("True theta:", theta)
 print("True sensitivity:\n", sim.get_sensitivity())
-#print("Estimated col sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=0))
+print("True row sums: \n", sim.get_sensitivity().sum(axis=1))
 
 # Storage for results
 CTR_obs = np.zeros((num_of_triggers, d))  # Observed CTRs
@@ -72,7 +75,38 @@ for i in range(simulation_steps):
             if not const_A:
                 start_range = max(0, trigger - 50)
 
-            result = least_squares(minimize_combined, np.concatenate((np.zeros(d*d), np.ones(d))), bounds=(np.zeros(d*d + d), (np.ones(d*d + d))), verbose=0, args=(d, P[start_range:trigger+1], CTR_obs[start_range:trigger+1])).x
+            #result = least_squares(minimize_combined, np.concatenate((np.zeros(d*d), np.ones(d))), bounds=(np.zeros(d*d + d), (np.ones(d*d + d))), verbose=0, args=(d, P[start_range:trigger+1], CTR_obs[start_range:trigger+1])).x
+            
+            #row-substochasticity constraints
+            constraints = [
+                {'type': 'ineq',
+                'fun': lambda params, i=i: 1 - np.sum(params[i*d:(i+1)*d])}
+                for i in range(d)
+            ]
+
+            #row-stochasticity constraints for DG model!
+            """
+            constraints = [
+                {'type': 'eq', 'fun': lambda params, i=i: np.sum(params[i*d:(i+1)*d]) - 1}
+                for i in range(d)
+            ]
+            """
+
+            # diagonal dominance constraints: S_ii >= S_ji for all j != i
+            for i in range(d):  # for each column i
+                diag_idx = i * d + i
+                for j in range(d):
+                    if j != i:
+                        off_idx = j * d + i
+                        constraints.append({
+                            'type': 'ineq',
+                            'fun': lambda params, diag_idx=diag_idx, off_idx=off_idx: params[diag_idx] - params[off_idx]
+                        })
+            
+            result = minimize(minimize_combined_scalar, np.concatenate((0.1*np.ones(d*d), 0.5*np.ones(d))), bounds=[(0, 1)]*(d*d + d), constraints=constraints, args=(d, P[start_range:trigger+1], CTR_obs[start_range:trigger+1]), method='SLSQP', options={'maxiter': 1000})
+            #print("Optimization success:", result.success, "Message:", result.message)
+            result = result.x
+            
             estimated_sensitivity = result[:d*d]
             estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
             estimated_sensitivity = estimated_sensitivity.reshape((d, d), order='C')

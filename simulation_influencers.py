@@ -79,7 +79,7 @@ delta[0] = np.ones(N)
 
 for i in range(simulation_steps):
     opinions[i + 1] = sim.update(p=position[i])
-    position[i + 1] = sim.ofo(prev_p=position[i], constraint=2)
+    position[i + 1] = sim.ofo(prev_p=position[i], constraint=1)
     
 print("Constraint 2: position", position[-1], "cost function", np.sum((opinions[-1])))
 
@@ -106,7 +106,7 @@ p = cp.Variable(N)
 x_ss = sim.get_sensitivity() @ p
 
 objective = cp.Minimize(-1*cp.sum(x_ss))
-constraints = [cp.norm1(p) <= 2, p >= -1, p <= 1]
+constraints = [cp.norm1(p) <= 1, p >= -1, p <= 1]
 prob = cp.Problem(objective, constraints)
 prob.solve()
 

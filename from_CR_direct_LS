@@ -90,7 +90,7 @@ clicking_function = 'combined' # linear, squared, exponential, exponential_half,
 d = 5
 
 for i in range(1):
-    sim, P, CTR, true_theta, true_sensitivity = generate_model(num_measurements=6, ideal=False, clicking_function=clicking_function)
+    sim, P, CTR, true_theta, true_sensitivity = generate_model(num_measurements=10, ideal=False, clicking_function=clicking_function)
 
     print("True sensitivity:\n", true_sensitivity)
     print("True col sums: \n", true_sensitivity.sum(axis=0))
