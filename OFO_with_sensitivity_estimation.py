@@ -49,8 +49,8 @@ rel_sensitivity_error_diag = np.zeros(num_of_triggers)
 theta_error = np.zeros(num_of_triggers)
 rel_theta_error = np.zeros(num_of_triggers)
 
-estimated_theta = 0
-estimated_sensitivity = 0
+estimated_theta = 0.5*np.ones(d)
+estimated_sensitivity = 0.5*np.ones(d*d)
 
 trigger = 0
 start_range = 0
@@ -103,17 +103,17 @@ for i in range(simulation_steps):
                             'fun': lambda params, diag_idx=diag_idx, off_idx=off_idx: params[diag_idx] - params[off_idx]
                         })
             
-            result = minimize(minimize_combined_scalar, np.concatenate((0.1*np.ones(d*d), 0.5*np.ones(d))), bounds=[(0, 1)]*(d*d + d), constraints=constraints, args=(d, P[start_range:trigger+1], CTR_obs[start_range:trigger+1]), method='SLSQP', options={'maxiter': 1000})
+            result = minimize(minimize_combined_scalar, np.concatenate((estimated_sensitivity, estimated_theta)), bounds=[(0, 1)]*(d*d + d), constraints=constraints, args=(d, P[start_range:trigger+1], CTR_obs[start_range:trigger+1]), method='SLSQP', options={'maxiter': 1000})
             #print("Optimization success:", result.success, "Message:", result.message)
             result = result.x
             
             estimated_sensitivity = result[:d*d]
             estimated_sensitivity[np.abs(estimated_sensitivity) < 1e-10] = 0
-            estimated_sensitivity = estimated_sensitivity.reshape((d, d), order='C')
+            estimated_sensitivity_matrix = estimated_sensitivity.reshape((d, d), order='C')
             estimated_theta = result[d*d:]
 
-            sensitivity_error[trigger] = np.linalg.norm(estimated_sensitivity - sim.get_sensitivity(), ord='fro')
-            rel_sensitivity_error_diag[trigger] = 100 * np.linalg.norm(np.diag(estimated_sensitivity - sim.get_sensitivity()), ord=1) / np.linalg.norm(np.diag(sim.get_sensitivity()), ord=1)
+            sensitivity_error[trigger] = np.linalg.norm(estimated_sensitivity_matrix - sim.get_sensitivity(), ord='fro')
+            rel_sensitivity_error_diag[trigger] = 100 * np.linalg.norm(np.diag(estimated_sensitivity_matrix - sim.get_sensitivity()), ord=1) / np.linalg.norm(np.diag(sim.get_sensitivity()), ord=1)
             theta_error[trigger] = np.linalg.norm(estimated_theta - theta, ord=2)
             rel_theta_error[trigger] = 100 * np.linalg.norm(estimated_theta - theta, ord=1) / np.linalg.norm(theta, ord=1)
 
@@ -121,7 +121,7 @@ for i in range(simulation_steps):
             #print("Estimated sensitivity:\n", estimated_sensitivity)
             #print("Estimated col sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=0))
 
-            P[trigger + 1] = sim.ofo_sensitivity(prev_p=P[trigger], sensitivity=estimated_sensitivity, constraint=kappa)
+            P[trigger + 1] = sim.ofo_sensitivity(prev_p=P[trigger], sensitivity=estimated_sensitivity_matrix, constraint=kappa)
             P_ideal[trigger + 1] = sim_ideal.ofo(prev_p=P_ideal[trigger], constraint=kappa)
             trigger += 1
     
@@ -134,7 +134,7 @@ for i in range(simulation_steps):
     
 
 print("Estimated theta:", estimated_theta)
-print("Estimated sensitivity:\n", estimated_sensitivity)
+print("Estimated sensitivity:\n", estimated_sensitivity_matrix)
 
 
 print(P[-1])
