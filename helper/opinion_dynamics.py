@@ -37,12 +37,13 @@ def projection(p, kappa):
 
 ## Friedkin-Johnsen model
 class FJModel:
-  def __init__(self, N, gamma_p, gamma_d, A, x_0):
+  def __init__(self, N, gamma_p, gamma_d, A, x_0, d):
     self.N = N
     self.gamma_p = np.diag(gamma_p)
     self.gamma_d = np.diag(gamma_d)
     self.A = A
-    self.d = x_0
+    self.d = d
+    #self.d = x_0
     self.x = x_0
 
   def update(self, p):
@@ -104,8 +105,6 @@ class DGModel:
     phi = sensitivity.T @ (-1*np.ones(self.N))
     p = prev_p - eta * phi
 
-    #p = projection_box(p, (-1, 1))
-    #p = projection_l1_ball(p, constraint) if constraint is not None else p
     return projection(p, kappa=constraint)
   
 
@@ -116,8 +115,6 @@ class DGModel:
     phi = sensitivity.T @ (-1*np.ones(self.N))
     p = prev_p - eta * phi + np.random.normal(0, sigma_pe, self.N)
     
-    #p = projection_box(p, (-1, 1))
-    #p = projection_l1_ball(p, constraint) if constraint is not None else p
     return projection(p, kappa=constraint)
   
 
