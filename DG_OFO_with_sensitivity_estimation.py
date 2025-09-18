@@ -5,6 +5,18 @@ from helper.opinion_dynamics import DGModel, FJModel
 from helper.clicking_functions import clicking_function_combined, minimize_combined, minimize_combined_scalar
 import pandas as pd
 
+def top_k_column_indices_match(matrix1, matrix2, k):
+    # Compute column sums
+    col_sums1 = np.sum(matrix1, axis=0)
+    col_sums2 = np.sum(matrix2, axis=0)
+    
+    # Get indices of the k largest column sums
+    top_k_indices1 = np.argsort(col_sums1)[-k:]
+    top_k_indices2 = np.argsort(col_sums2)[-k:]
+    
+    # Return 1 if indices match, 0 otherwise
+    return 1 if set(top_k_indices1) == set(top_k_indices2) else 0
+
 # Parameters
 #np.random.seed(41)
 np.set_printoptions(precision=4, suppress=True)
@@ -13,31 +25,38 @@ num_of_triggers = simulation_steps//100
 d = 5
 kappa = 2 # L1 constraint on P
 const_A = True
+W = 15
 flip_A = False
+precision_influencer = 0
 
 records = []
 
-runs = 50
+runs = 1
 for run in range(runs):
     print("Run", run + 1)
 
     # Fixed matrix and parameters
     A = np.array([[0.15, 0.15, 0.1, 0.2, 0.4],[0, 0.55, 0, 0, 0.45],[0.3, 0.05, 0.05, 0, 0.6],[0, 0.4, 0.1, 0.5, 0],[0, 0.3, 0, 0, 0.7]])
     x_0 = np.random.uniform(-1, 1, d)
-    p_0 = np.random.uniform(-1, 1, d)
-    p_0 = (p_0 / np.linalg.norm(p_0, 1)) * kappa
+    p_0 = np.zeros(d)
+    #p_0 = (p_0 / np.linalg.norm(p_0, 1)) * kappa
     gamma_p = np.random.uniform(0.01, 0.5, d)
     gamma_d = np.random.uniform(0.01, 0.25, d)
-    #sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
-    #sim_ideal = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+    sim = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
+    sim_ideal = DGModel(N=d, gamma=gamma_p, A=A, x_0=x_0)
     disturb = np.random.normal(0, 0.2, d)
-    sim = FJModel(N=d, gamma_p=gamma_p, gamma_d=gamma_d, A=A, x_0=x_0, d=disturb)
-    sim_ideal = FJModel(N=d, gamma_p=gamma_p, gamma_d=gamma_d, A=A, x_0=x_0, d=disturb)
+    #sim = FJModel(N=d, gamma_p=gamma_p, gamma_d=gamma_d, A=A, x_0=x_0, d=disturb)
+    #sim_ideal = FJModel(N=d, gamma_p=gamma_p, gamma_d=gamma_d, A=A, x_0=x_0, d=disturb)
     theta = np.random.uniform(0, 1, d)
 
-    print("True theta:", theta)
-    print("True sensitivity:\n", sim.get_sensitivity())
+    #print("True theta:", theta)
+    #print("True sensitivity:\n", sim.get_sensitivity())
     #print("True row sums: \n", sim.get_sensitivity().sum(axis=1))
+
+    #print("Optimal p:", feedforward.x)
+    #print("Optimal x:", sim.get_sensitivity() @ feedforward.x)
+    #print("Cost function:", -1*feedforward.fun)
+
 
     # Storage for results
     CTR_obs = np.zeros((num_of_triggers, d))  # Observed CTRs
@@ -56,19 +75,30 @@ for run in range(runs):
     theta_error = np.zeros(num_of_triggers)
     rel_theta_error = np.zeros(num_of_triggers)
 
+    performance_ratio_ideal = np.zeros(simulation_steps)
+    performance_ratio = np.zeros(simulation_steps)
+
     cost_difference = np.zeros(simulation_steps)
 
     estimated_theta = 0.5*np.ones(d)
     estimated_sensitivity = np.eye(d).flatten(order='C')
 
+    feedforward = minimize(lambda p: -1*np.sum(sim.get_sensitivity() @ p), np.zeros(d), bounds=[(-1,1)]*d, constraints = {'type': 'eq','fun': lambda p: kappa - np.sum(np.abs(p))})
+
+
     trigger = 0
     start_range = 0
     for i in range(simulation_steps):
         cost_difference[i] = abs(np.sum(X[i]) - np.sum(X_ideal[i]))
+        if(np.sum(X[i]) > (-1*feedforward.fun)):
+            print(X[i], P[trigger], feedforward.x)
+        performance_ratio[i] = np.sum(X[i]) / (-1*feedforward.fun) 
+        performance_ratio_ideal[i] = np.sum(X_ideal[i]) / (-1*feedforward.fun) 
 
         if i % 100 <= 40:  # First 20 steps: give time to converge
             X[i + 1] = sim.update(p=P[trigger])
             X_ideal[i + 1] = sim_ideal.update(p=P_ideal[trigger])
+        
         else: # Last 60 steps: measure CTR
             CTR_obs[trigger] += np.random.rand() < clicking_function_combined(P[trigger], X[i], theta=theta)
             CTR_obs_ideal[trigger] += np.random.rand() < clicking_function_combined(P_ideal[trigger], X_ideal[i], theta=theta)
@@ -77,33 +107,34 @@ for run in range(runs):
 
 
             if i % 100 == 99: # End of trigger period: average CTR, estimate sensitivity and choose new P
-                #print("Trigger", trigger + 1)
+                #print("Optimal pos", feedforward.x)
+                #print("True sensitivity:\n", np.sum(sim.get_sensitivity(), axis=0))
                 CTR_obs[trigger] /= 60
                 CTR_obs_ideal[trigger] /= 60
                 #print("Observed CTR:", CTR_obs[trigger])
                 #print("Ideal CTR:", clicking_function_combined(P[trigger], X[i], theta=theta))
 
                 if not const_A:
-                    start_range = max(0, trigger - 50)
+                    start_range = max(0, trigger - W)
 
                 #result = least_squares(minimize_combined, np.concatenate((np.zeros(d*d), np.ones(d))), bounds=(np.zeros(d*d + d), (np.ones(d*d + d))), verbose=0, args=(d, P[start_range:trigger+1], CTR_obs[start_range:trigger+1])).x
                 
                 #row-substochasticity constraints
-                #"""
+                """
                 constraints = [
                     {'type': 'ineq',
                     'fun': lambda params, i=i: 1 - np.sum(params[i*d:(i+1)*d])}
                     for i in range(d)
                 ]
-                #"""
+                """
 
                 #row-stochasticity constraints for DG model!
-                """
+                #"""
                 constraints = [
                     {'type': 'eq', 'fun': lambda params, i=i: np.sum(params[i*d:(i+1)*d]) - 1}
                     for i in range(d)
                 ]
-                """
+                #"""
 
                 # diagonal dominance constraints: S_ii >= S_ji for all j != i
                 for i in range(d):  # for each column i
@@ -130,12 +161,7 @@ for run in range(runs):
                 theta_error[trigger] = np.linalg.norm(estimated_theta - theta, ord=2)
                 rel_theta_error[trigger] = 100 * np.linalg.norm(estimated_theta - theta, ord=1) / np.linalg.norm(theta, ord=1)
 
-                #if trigger < 5:
-                    #print("Estimated theta:", estimated_theta)
-                    #print("Estimated sensitivity:\n", estimated_sensitivity)
-                    #print("Estimated col sums: \n", estimated_sensitivity.reshape((d, d), order='C').sum(axis=0))
-
-                P[trigger + 1] = sim.ofo_sensitivity(prev_p=P[trigger], sensitivity=estimated_sensitivity_matrix, constraint=kappa)
+                P[trigger + 1] = sim.ofo_sensitivity(prev_p=P[trigger], sensitivity=estimated_sensitivity_matrix, constraint=kappa, pe = trigger <= 48)
                 P_ideal[trigger + 1] = sim_ideal.ofo(prev_p=P_ideal[trigger], constraint=kappa)
                 trigger += 1
         
@@ -143,16 +169,22 @@ for run in range(runs):
             sim.evolve_A()
 
         if i == simulation_steps//2 and flip_A:
-            sim.A[[1,4]] = sim.A[[4,1]]
+            sim.A[[2,1]] = sim.A[[1,2]]
+            print(feedforward.x)
+            feedforward = minimize(lambda p: -1*np.sum(sim.get_sensitivity() @ p), np.zeros(d), bounds=[(-1,1)]*d, constraints = {'type': 'eq','fun': lambda p: kappa - np.sum(np.abs(p))})
+            print(feedforward.x)
 
-    #print("Estimated theta:", estimated_theta)
-    #print("Estimated sensitivity:\n", estimated_sensitivity_matrix)
 
-    records.append({"rel_sensitivity_error": rel_sensitivity_error_diag, "rel_theta_error": rel_theta_error, "cost":cost_difference, "positions": P, "opinions": X, "CTR": CTR_obs, "last_sensitivity_estimate": estimated_sensitivity_matrix, "last_theta_estimate": estimated_theta, "positions_ideal": P_ideal, "opinions_ideal": X_ideal, "CTR_ideal": CTR_obs_ideal})
+    #print("Ideal Final postions:", P_ideal[-2], "Final opinions:", X_ideal[-1], "Final cost function", np.sum(X_ideal[-1]))
+    #print("Final postions:", P[-2], "Final opinions:", X[-1], "Final cost function", np.sum(X[-1]))
+    precision_influencer += top_k_column_indices_match(sim.get_sensitivity(), estimated_sensitivity_matrix, kappa)
+    records.append({"rel_sensitivity_error": rel_sensitivity_error_diag, "rel_theta_error": rel_theta_error, 
+                    "cost":cost_difference, "performance_ratio": performance_ratio, "performance_ratio_ideal": performance_ratio_ideal, "CTR": CTR_obs, "last_sensitivity_estimate": estimated_sensitivity_matrix, "last_theta_estimate": estimated_theta, "positions_ideal": P_ideal, "opinions_ideal": X_ideal, "CTR_ideal": CTR_obs_ideal})
 
 
 df = pd.DataFrame(records)
 
+print("Right influencer", precision_influencer, "out of", runs, "runs")
 
 def plot_results(l, title, values = 50):
     if len(l[0]) == 50:
@@ -163,17 +195,66 @@ def plot_results(l, title, values = 50):
     for i in range(values):
         plt.plot(x, l[i], color='0.8')
     
-    plt.plot(x, np.mean(l, axis=0), linestyle="-", label='Mean sensitivity error')
-    plt.title(title)
+    plt.plot(x, np.mean(l, axis=0), linestyle="-", label='Mean')
+    plt.ylabel(title)
     plt.xlabel("Time steps")
+    plt.xlim(0, 5000)
+    plt.ylim(0, 150)
     plt.legend()
     plt.grid()
     plt.show()
 
-plot_results(df['rel_sensitivity_error'].tolist(), title="Relative errror in %", values=runs)
-plot_results(df['rel_theta_error'].tolist(), title=r"Relative $\theta$ error in %", values=runs)
-plot_results(df['cost'].tolist(), title=r"Difference in average opinion", values=runs)
+def plot_theta(l, title, values = 50):
+    if len(l[0]) == 50:
+        x = np.arange(50) * 100
+    else:
+        x = np.arange(len(l[0])) 
+    
+    for i in range(values):
+        plt.plot(x, l[i], color='0.8')
+    
+    plt.plot(x, np.mean(l, axis=0), linestyle="-", label='Mean')
+    plt.ylabel(title)
+    plt.xlabel("Time steps")
+    plt.xlim(0, 5000)
+    plt.ylim(0, 40)
+    plt.legend()
+    plt.grid()
+    plt.show()
 
+plot_results(df['rel_sensitivity_error'].tolist(), title='Relative sensitivity error (%)', values=runs)
+plot_theta(df['rel_theta_error'].tolist(), title=r"Relative $\theta$ error (%)", values=runs)
+#plot_results(df['cost'].tolist(), title=r"Difference in average opinion", values=runs)
+
+
+def plot_with_std(ratio, ratio_ideal, title, values=50):
+    if len(ratio[0]) == 50:
+        x = np.arange(50) * 100
+    else:
+        x = np.arange(len(ratio[0]))
+    
+    ratio = np.array(ratio)
+    ratio_ideal = np.array(ratio_ideal)
+    
+    mean = ratio.mean(axis=0)
+    std = ratio.std(axis=0)
+    plt.plot(x, mean, color='blue')
+    plt.fill_between(x, mean-std, mean+std, color="blue", alpha=0.2, label='Sensitivity estimated')
+
+    mean = ratio_ideal.mean(axis=0)
+    std = ratio_ideal.std(axis=0)
+    plt.plot(x, mean, color='orange')
+    plt.fill_between(x, mean-std, mean+std, color="orange", alpha=0.2, label='Sensitivity known')
+
+
+    plt.ylabel(title)
+    plt.xlabel("Time step")
+    plt.legend()
+    plt.grid()
+    plt.ylim(-0.1, 1.1)
+    plt.show()
+
+plot_with_std(df['performance_ratio'].tolist(), df['performance_ratio_ideal'].tolist(), title="Performance Ratio", values=runs)
 
 
 def plot_all_users(l, l_ideal, title):

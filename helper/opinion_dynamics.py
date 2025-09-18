@@ -1,17 +1,18 @@
 import numpy as np
 from scipy.optimize import minimize
-from jaxopt.projection import projection_l1_ball, projection_box
 
-def generate_adjacency_matrix(n):
-    A = np.random.rand(n, n) * (np.random.rand(n, n) > 0.5)
-    np.fill_diagonal(A, 1.0)  # Set diagonal entries to 1
-    for it, row in enumerate(A):
-        row_sums = row.sum()
-        if row_sums == 0:
-            A[it][it] = 1
-            row_sums = 1
-        A[it] = A[it] / row_sums
-    return A
+def top_kappa_columns(M: np.ndarray, kappa: int):
+    # compute column sums
+    col_sums = M.sum(axis=0)
+    
+    # get indices of top-kappa sums
+    top_indices = np.argsort(col_sums)[-kappa:]
+    
+    # build binary vector
+    mask = np.zeros(M.shape[1], dtype=int)
+    mask[top_indices] = 1
+    
+    return mask
 
 
 def projection(p, kappa):
@@ -57,6 +58,11 @@ class FJModel:
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma_p
     return sensitivity
   
+  def get_disp_sensitivity(self):
+    A_tilde = (np.eye(self.N) - self.gamma_p - self.gamma_d) @ self.A
+    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma_d
+    return sensitivity
+  
   def ofo(self, prev_p, constraint=None):
     eta = 0.075
     A_tilde = (np.eye(self.N) - self.gamma_p - self.gamma_d) @ self.A
@@ -70,9 +76,11 @@ class FJModel:
     return projection(p, kappa=constraint)
   
 
-  def ofo_sensitivity(self, prev_p, sensitivity, constraint=None):
+  def ofo_sensitivity(self, prev_p, sensitivity, constraint=None, pe=True):
     eta = 0.075
     sigma_pe = 0.07
+    if not pe:
+      sigma_pe = 0
 
     phi = sensitivity.T @ (-1*np.ones(self.N))
     p = prev_p - eta * phi + np.random.normal(0, sigma_pe, self.N)
@@ -80,6 +88,30 @@ class FJModel:
     #p = projection_box(p, (-1, 1))
     #p = projection_l1_ball(p, constraint) if constraint is not None else p
     return projection(p, kappa=constraint)
+  
+
+  def col_sensitivity(self, sensitivity, constraint=None, pe=True):
+    sigma_pe = 0.07
+    if not pe:
+      sigma_pe = 0
+
+    p = top_kappa_columns(sensitivity, constraint) + np.random.normal(0, sigma_pe, self.N)
+    
+    #p = projection_box(p, (-1, 1))
+    #p = projection_l1_ball(p, constraint) if constraint is not None else p
+    return projection(p, kappa=constraint)
+  
+  def evolve_A(self):
+    perturbation = np.random.normal(0, 0.1, (self.N, self.N)) * (np.random.rand(self.N, self.N) > 0.99)
+    self.A = self.A + perturbation
+    self.A = np.clip(self.A, 0, 1)  # Ensure non-negativity
+    for it, row in enumerate(self.A):
+        row_sums = row.sum()
+        if row_sums == 0:
+            self.A[it][it] = 1
+            row_sums = 1
+        self.A[it] = self.A[it] / row_sums
+
 
 
 
@@ -98,7 +130,7 @@ class DGModel:
 
   
   def ofo(self, prev_p, constraint=None):
-    eta = 0.075
+    eta = 0.1
     A_tilde = (np.eye(self.N) - self.gamma) @ self.A
     sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
     
@@ -108,9 +140,11 @@ class DGModel:
     return projection(p, kappa=constraint)
   
 
-  def ofo_sensitivity(self, prev_p, sensitivity, constraint=None):
-    eta = 0.075
+  def ofo_sensitivity(self, prev_p, sensitivity, constraint=None, pe=True):
+    eta = 0.1
     sigma_pe = 0.07
+    if not pe:
+      sigma_pe = 0
 
     phi = sensitivity.T @ (-1*np.ones(self.N))
     p = prev_p - eta * phi + np.random.normal(0, sigma_pe, self.N)
@@ -154,26 +188,6 @@ class DGModel:
     x = sensitivity @ p
     diag = np.diag(2 * theta * (x - p))
     return (- diag + diag @ sensitivity)
-  
-  def ofo_milp(self, prev_p, constraint=None):
-    nabla = 0.1
-    A_tilde = (np.eye(self.N) - self.gamma) @ self.A
-    sensitivity = np.linalg.inv(np.eye(self.N) - A_tilde) @ self.gamma
-    
-    phi = sensitivity.T @ (self.x - np.ones(self.N))
-    p = prev_p - nabla * phi
-
-    p = projection_box(p, (-1, 1))
-
-    if constraint is None:
-      p = np.round(p)
-    else:
-      binary_p = np.zeros(self.N)
-      top_indices = np.argpartition(p, -constraint)[-constraint:]
-      binary_p[top_indices] = 1
-      p = binary_p
-      
-    return p
 
 
   """
